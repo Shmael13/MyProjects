@@ -12,6 +12,7 @@ typedef struct Node {
     double val;
     struct Node* next;
 }Node;
+
 typedef struct HashSet{
     Node** linkedList;
     int size;
@@ -31,8 +32,6 @@ unsigned long hashFunction(unsigned char *str){
         hash = ((hash << 5) + hash) ^ c; //easy on cache - avoids clustering, collision avoidance - XOR adds "randomness", fast operations  
     return hash;
 }
-
-
 
 /*Creates new Hashset*/
 HashSet* createHashSet(int init_capacity){
@@ -55,7 +54,28 @@ HashSet* createHashSet(int init_capacity){
     return newHash;
 }
 
-/*Checks if a Hashset Contains a value*/
+/*Checks if a Hashset Contains key*/
+bool setContainsKey(HashSet * set, char* keyToFind){
+    int idx = hashFunction(keyToFind);    
+    Node* current = set->linkedList[idx]; //Start node of linkedList for key
+    while (current){
+        if (current->key == keyToFind){return true;}
+        current = current->next;
+    }
+    return false;
+}
+
+/*Checks if a Hashset Contains Val*/
+bool setContainsKey(HashSet * set, char* valToFind){
+    int idx = hashFunction(valToFind);    
+    Node* current = set->linkedList[idx]; //Start node of linkedList for key
+    while (current){
+        if (current->key == valToFind){return true;}
+        current = current->next;
+    }
+    return false;
+}
+
 
 
 //for testing
