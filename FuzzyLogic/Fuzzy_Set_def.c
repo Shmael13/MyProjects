@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define LOAD_FACTOR = 0.75
+#define LOAD_FACTOR 0.75
+#define GROWTH_RATE 2
 
 /*Node and HashSet Struct definitions*/
 typedef struct Pairing {
@@ -22,6 +23,13 @@ typedef struct HashSet{
     int size;
     int capacity;
 }HashSet;
+//All the functions I will use
+HashSet* resizeSet(HashSet* oldSet);
+unsigned long hashFunction(unsigned char *str);
+HashSet* createHashSet(int init_capacity);
+bool hashSetContainsKey(HashSet * set, char* keyToFind);
+char** hashSetContainsVal(HashSet * set, double valToFind, int* numKeys);
+int hashSetInsert(HashSet* set, char* insertKey, double insertVal, bool replace);
 
 /*
 Hashfunction from Bernstien? 
@@ -41,12 +49,13 @@ unsigned long hashFunction(unsigned char *str){
 HashSet* createHashSet(int init_capacity){
     HashSet* newHash = (HashSet*)malloc(sizeof(HashSet));
     if (newHash == NULL){
-        fprintf(stderr, "Could not allocate new hashSet with capacity: %i\n", init_capacity);
+        fprintf(stderr, "Could not allocate new hashSet\n");
         return NULL;
     }
     newHash->linkedList = (Node**)malloc(init_capacity * sizeof(Node*)); //could use Calloc here, but Malloc is faster
     if (newHash->linkedList == NULL){
         fprintf(stderr, "Could not allocate linked list of new hashSet with capacity: %i\n", init_capacity);
+        //fix freeing
         free(newHash);                                                                                                      //CHECK
         return NULL;
     }
@@ -63,7 +72,7 @@ bool hashSetContainsKey(HashSet * set, char* keyToFind){
     int idx = hashFunction(keyToFind) % set->capacity;    
     Node* current = set->linkedList[idx]; //Start node of linkedList for key
     while (current){
-        if (current->key == keyToFind){return true;}
+        if (!strcmp(current->key,keyToFind)){return true;}
         current = current->next;
     }
     return false;
@@ -112,15 +121,30 @@ int hashSetInsert(HashSet* set, char* insertKey, double insertVal, bool replace)
     }
 
     int setSize = set->size;
-    int setCap = set->capacity;
-                                                                                                                    ///implement resizeSetstuff
-    if (setSize+1>setCap){
-        //resizeSet(set);
+
+    //resize if neccesary
+    if (((setSize+1)*LOAD_FACTOR)>=set->capacity){
+        puts("we got here?1");
+        HashSet* newSet = resizeSet(set);
+        if (newSet == NULL){
+            fprintf(stderr, "Could not resize when inserting");
+            return -1;
+        }
+        *set = *newSet;
+        free(newSet); //fix freeing
     }
+    
+
+
+
+
+    int setCap = set->capacity;
+    
 
     //create the node to insert
     Node * newNode = malloc(sizeof(Node));
     if (newNode == NULL){
+        free(inKey);
         fprintf(stderr, "Could not allocate Node of size %lu in hashSetInsert\n", sizeof(Node));
         return -1;
     }
@@ -144,6 +168,7 @@ int hashSetInsert(HashSet* set, char* insertKey, double insertVal, bool replace)
             //error if equal and no replaces
             if (!strcmp(current->key,inKey) && !replace){
                 free(inKey);
+                //fix freeing
                 free(newNode);
                 fprintf(stderr, "%s already in set\n", inKey);
                 return -1;}    
@@ -159,6 +184,7 @@ int hashSetInsert(HashSet* set, char* insertKey, double insertVal, bool replace)
             //replace current with newNode
             if (!strcmp(current->key,inKey) && !replace){
                 free(inKey);
+                //fix freeing
                 free(newNode);
                 fprintf(stderr, "%s is already in set\n", inKey);
                 return -1;}    
@@ -170,20 +196,71 @@ int hashSetInsert(HashSet* set, char* insertKey, double insertVal, bool replace)
     return 1;
 }
 
-//bool resizeSet(HashSet* set){}
+HashSet* resizeSet(HashSet* oldSet){
+    //init newSet
+    int newCapacity = oldSet->capacity * GROWTH_RATE;
+    HashSet* newSet = createHashSet(newCapacity);
+    if (newSet == NULL){
+        fprintf(stderr, "Could not resize the hashset\n");
+        return NULL;
+    }
+    int oldCapacity = oldSet->capacity;
+
+    for (int i = 0; i < oldCapacity; i++){
+        Node* current = oldSet->linkedList[i];
+        while(current != NULL){
+            char * oldKey = current->key;
+            double oldVal = current->val;
+            unsigned long hashIdx = hashFunction(oldKey) % newCapacity;
+            hashSetInsert(newSet, oldKey, oldVal, false);
+            current = current->next;
+        }
+    }
+    puts("we got here 2");
+
+    
+    //fix freeing
+    free(oldSet);
+    return newSet;
+}
 
 
 //for testing
 int main(){
     // Assuming HashSet has been initialized
-HashSet* set = createHashSet(3);
+HashSet* set = createHashSet(1);
 
-hashSetInsert(set, "this", 2, true);
-hashSetInsert(set, "this", 1, false);
-hashSetInsert(set, "this221", 1, true);
+hashSetInsert(set, "this", 1, true);
 
 // Print the linked list to verify correct ordering
 for (int i = 0; i < set->capacity; i++) {
+    Node* current = set->linkedList[i];
+    while (current != NULL) {
+        printf("Key: %s, Value: %.2f\n", current->key, current->val);
+        current = current->next;
+    }
+}
+
+hashSetInsert(set, "this1", 1, true);
+
+puts("");
+// Print the linked list to verify correct ordering
+for (int i = 0; i < set->capacity; i++) {
+    Node* current = set->linkedList[i];
+    while (current != NULL) {
+        printf("Key: %s, Value: %.2f\n", current->key, current->val);
+        current = current->next;
+    }
+}
+
+puts("Segfault from next instruction");
+printf("Curr Set Capacity: %i\n\n", set->capacity);
+
+
+hashSetInsert(set, "this221", 1, true);
+
+// Print the linked list to verify correct ordering
+for (int i = 0; i < set->capacity; i++) { 
     Node* current = set->linkedList[i];
     while (current != NULL) {
         printf("Key: %s, Value: %.2f\n", current->key, current->val);
