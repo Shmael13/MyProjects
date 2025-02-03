@@ -7,6 +7,11 @@
 
 
 /*Node and HashSet Struct definitions*/
+typedef struct Pairing {
+    char * key;
+    double val;
+}Pairing;
+
 typedef struct Node {
     char * key;
     double val;
@@ -55,7 +60,7 @@ HashSet* createHashSet(int init_capacity){
 }
 
 /*Checks if a Hashset Contains key*/
-bool setContainsKey(HashSet * set, char* keyToFind){
+bool hashSetContainsKey(HashSet * set, char* keyToFind){
     int idx = hashFunction(keyToFind);    
     Node* current = set->linkedList[idx]; //Start node of linkedList for key
     while (current){
@@ -65,22 +70,34 @@ bool setContainsKey(HashSet * set, char* keyToFind){
     return false;
 }
 
-/*Checks if a Hashset Contains Val*/
-bool setContainsKey(HashSet * set, char* valToFind){
-    int idx = hashFunction(valToFind);    
-    Node* current = set->linkedList[idx]; //Start node of linkedList for key
-    while (current){
-        if (current->key == valToFind){return true;}
-        current = current->next;
+/*Checks if a Hashset Contains Val
+Returns a list of keys who correspond to that val
+*/
+bool hashSetContainsVal(HashSet * set, double valToFind){
+    int setSize = set->size;
+    char * keys[setSize];
+    int currIdx = 0;
+    for (int i =0; i < setSize; i++){
+        Node* current = set->linkedList[i]; //Will have to search the whole set
+        while (current){
+            if (current->val == valToFind){keys[currIdx] = current->key;}
+            current = current->next;
+        }
     }
-    return false;
+    return keys;
 }
 
+
+/*Inserts a key, value pair into the hashset. Returns true if the capacity was not changed*/
+bool hashSetInsert(){
+
+}
 
 
 //for testing
 int main(){
     createHashSet(10);
+    
 
 }
 
