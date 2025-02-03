@@ -26,7 +26,7 @@ typedef struct HashSet{
 /*
 Hashfunction from Bernstien? 
 Found online from http://www.cse.yorku.ca/~oz/hash.html 
-Adapted to improve
+Adapted to improve performance
 */
 unsigned long hashFunction(unsigned char *str){
     unsigned long hash = 5387; //prime
