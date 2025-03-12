@@ -14,6 +14,12 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
+#for testing
+def infin_wait():
+    while(True):
+        time.sleep(10)
+        print("next")
+
 
 #Init the driver
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
@@ -34,20 +40,35 @@ login_button.click()
 
 #This program must not act like a bot
 time.sleep(3.14158)
-time.sleep(50)
 
 
-#Goto linkedIn search bar
+#Goto linkedIn search bar to make elems visible
+search_button = driver.find_element(By.CSS_SELECTOR, ".search-global-typeahead__collapsed-search-button")
+search_button.click()
 
-#Find elems that are both (search-global-typeahead__input) and (search-global-typeahead__input--ellipsis)
-search_box = driver.find_element(By.CSS_SELECTOR, ".search-global-typeahead__input.search-global-typeahead__input--ellipsis")
-search_box.send_keys("Software Engineer")  # search Query we are using
-search_box.send_keys(Keys.RETURN)
-time.sleep(5.6789)   #No bots wanted
+# Find the (newly visible) search input
+search_input = driver.find_element(By.CSS_SELECTOR, "input.search-global-typeahead__input--nile-background")
+search_input.send_keys("Software Engineer")  # search Query we are using
+search_input.send_keys(Keys.RETURN)
+time.sleep(5.6789)   #No bots wanted, and wait till page loads
 
 
 #Click the people button
-people_button = driver.find_element(By.XPATH,"//button[normalize-space(text())='People']")
+# infin_wait()
+
+people_button = driver.find_element(By.XPATH, "//button[text()='People']")
 people_button.click()
 
 print("Worked!")
+
+#loops over and sends connections without notes to 10 people
+# i = 0
+# while (i < 10):
+#     try()
+
+
+#     i++
+
+
+
+infin_wait()
