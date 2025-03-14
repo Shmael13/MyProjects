@@ -95,7 +95,7 @@ while i < 10:
                 driver.execute_script("arguments[0].click();", button)
 
             time.sleep(2)  # Allow pop-up
-
+            i+=1
             # "Send without a note"
             try:
                 time.sleep(3)
@@ -109,6 +109,6 @@ while i < 10:
         except Exception as button_error:
             print(f"Error clicking 'Connect' button: {button_error}")
             break
-    i+=1
+    
 
 print(f"Made {i} connections")
