@@ -34,8 +34,8 @@ driver.get("https://www.linkedin.com/login")
 username = driver.find_element(By.ID, "username")
 passwrd = driver.find_element(By.ID, "password")
 #add my credentials here (secret stuff hush hush)
-username.send_keys("ismailsyed2005@gmail.com")
-passwrd.send_keys("Ismailtheboss")
+username.send_keys("")
+passwrd.send_keys("")
 # //->allows search to start from anywhere in HTML
 # button -> specifies tag name of elems we are looking for
 # type -> tells XPATH engine that we are only looking for 'submit' buttons
