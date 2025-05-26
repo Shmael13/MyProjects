@@ -1,0 +1,40 @@
+Define the outcome:
+Make a market where different bots trade with each other.
+A free stock market with multiple play. 
+Each stock will have different data. 
+
+-- Optionally implement News, Crash in market, diff attr of stock. 
+
+- Financial Stmnt -Ticker -Price -Volume traded -NumStocks -Historical -Industry
+- Events positive/negative impact probability percentage impact
+- Correllated with other stocks
+
+Five Classes:
+  Traders(submit trades), 
+  Events(impact stocks), 
+  Stocks(valuation of stocks), 
+  God(creates events), 
+  Exchange(enables exchange between traders)
+
+Make the architecture:
+There weill be a single-process arichitecture. (May later extend to client-server TCP)
+One simulation loop"
+1.  Advance Time (with clock)
+2.  Generate Events (God)
+      Events impact stock valuations.
+3.  Traders Make Decisions.               (Traders are forced to sell after 7 clock cycles to prevent hoarding, -- fix later, or add a LOT of 'human' traders with slightly random behaviors)
+      Traders each submit buy/sell orders
+4. Exchange Matches the orders.
+5. Log the history and update the state
+6. Repeat
+
+Events map onto different stocks differently. 
+-   Positive V Negative
+-   Adv  or disadv compared to industry
+-   Shock Events (trigger buy or sell of stocks by intitutions, and have massive stock price chages)
+
+Traders:
+-   Submit trades based on stock data.
+
+
+Make a plan:
