@@ -1,5 +1,5 @@
 #include "industry.h"
-#include "stock.h"
+#include "../stock.h"
 
 Industry::Industry(const std::string& industry_name, double avg_growth)
     :industry_name(industry_name), avg_growth(avg_growth), stocks(){}

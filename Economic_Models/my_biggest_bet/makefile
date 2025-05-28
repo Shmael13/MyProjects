@@ -6,10 +6,10 @@ CXXFLAGS = -Wall -Werror -Wextra -Wconversion -Wsign-conversion -Weffc++
 TARGET = main
 
 #Source Files
-SRCS = main.cpp stock.cpp industry.cpp
+SRCS = main.cpp stock.cpp utils/industry.cpp
 
 #Header files
-HEADER = stock.h industry.h
+HEADER = stock.h utils/industry.h
 
 #Object files
 OBJS = $(SRCS:.cpp=.o)

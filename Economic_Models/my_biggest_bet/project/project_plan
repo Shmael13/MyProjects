@@ -34,7 +34,11 @@ Events map onto different stocks differently.
 -   Shock Events (trigger buy or sell of stocks by intitutions, and have massive stock price chages)
 
 Traders:
--   Submit trades based on stock data.
+-   Submit trades based on stock data, and they can store their own previous trades.
+-   The exchange asynchronously sends each trader the stock_frame
+-  This stock frame encapsulates the data of all the stocks currently within the market
+-   Traders can thus use this snapshot to make trades based on some strategy.
+
 
 
 Make a plan:
