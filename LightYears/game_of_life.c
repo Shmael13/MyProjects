@@ -46,7 +46,7 @@ void init_balls(BALL obj[]){
 		b->dx = 1; // ((((float)rand()) / RAND_MAX) -0.5) * 2 * 4;
 		b->dy = 0; // ((((float)rand()) / RAND_MAX) -0.5) * 2 * 4;
 		b->type = i % BT_N;
-    b->radius = 10;
+    b->radius = 5;
     if (b->type == BT_BLUE){
       b->x = 426;
       b->dx = -1;
@@ -105,15 +105,20 @@ void update_ball_velocity(BALL obj[]){
         float dist = distance(&obj[i], &obj[j]);
         float dx = obj[j].x - obj[i].x; //x component
         float dy = obj[j].y - obj[i].y; //y component
-        float force;
+        float force = 10000000.0f; //VERY large value, which should never be used
 
-        if (dist < obj->radius * 2){
+        if (dist > obj->radius * obj->radius){ //very far, no effect
+          force = 0;
+        }
+
+        else if (dist < obj->radius * 2){     //too close, push away
           force = -(1.0 / (dist * dist)) * exp(-dist * 5.0f);
         }        
-
-        else if (dist > 0){
+        
+        else if (dist > 0){ //normal case
           force = GRAVITY / (dist * dist);
         }
+        
         dx /= dist;
         dy /= dist;
         obj[i].dx += dx * force;
