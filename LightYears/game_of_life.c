@@ -6,9 +6,16 @@
 #include <allegro5/allegro_primitives.h>
 #include <math.h>
 
-int NUMBALLS = 50;
+int NUMBALLS = 9;
 float GRAVITY = 10.0f; // strength of attraction/repulsion
-float FRICTION = 0.01f;
+float FRICTION = 0.1f;
+float REPULSION_STRENGTH = 5.0f;
+int BALL_SIZE = 10;
+float SIM_SPEED = 60.0;
+float WALL_REPULSION = 1.5f;
+
+int WINDOW_LEN = 1000;
+int WINDOW_WIDTH = 700;
 
 void must_init(bool test, const char* description)
 {
@@ -20,7 +27,7 @@ void must_init(bool test, const char* description)
 enum BALL_TYPE {
 	BT_BLUE = 0,
 	BT_YELLOW,
-  BT_GREEN, 
+ 	BT_GREEN, 
 	BT_N
 };
 
@@ -30,6 +37,11 @@ typedef struct BALL{
   float radius;
 	int type;
 }BALL;
+
+// The order is in order of appearance in BT_TYPE
+// so, blue to blue, blue to yellow, yellow to blue, yellow to yellow
+float color_repvals[BT_N][BT_N] = {{0.3, -0.5, -0.5}, {0.6, -0.6, 1}, {0.35, 0.6, -1}};
+
 
 float distance(BALL* a, BALL* b) {
     float dx = a->x - b->x;
@@ -41,12 +53,12 @@ void init_balls(BALL obj[]){
 
 	for(int i = 0; i < BT_N * NUMBALLS; i++){
 		BALL* b = &obj[i];
-		b->x = rand() % 640;
-		b->y = rand() % 480;
+		b->x = rand() % WINDOW_LEN;
+		b->y = rand() % WINDOW_WIDTH;
 		b->dx = 1; // ((((float)rand()) / RAND_MAX) -0.5) * 2 * 4;
 		b->dy = 0; // ((((float)rand()) / RAND_MAX) -0.5) * 2 * 4;
 		b->type = i % BT_N;
-    b->radius = 5;
+    b->radius = BALL_SIZE;
     if (b->type == BT_BLUE){
       b->x = 426;
       b->dx = -1;
@@ -62,8 +74,8 @@ void redraw_balls(BALL obj[]){
 		ALLEGRO_COLOR color;
 		if (b->type == BT_BLUE){color = al_map_rgb_f(0, 190, 255);}
 		if (b->type == BT_YELLOW){color = al_map_rgb_f(255, 255, 0);}
-    if (b->type == BT_GREEN){color = al_map_rgb_f(0, 255, 0);}
-		al_draw_circle(b->x, b->y, b->radius, color, 10);
+    		if (b->type == BT_GREEN){color = al_map_rgb_f(0, 255, 0);}
+		al_draw_circle(b->x, b->y, b->radius, color, 20);
 	}
 	al_flip_display();
 }
@@ -78,22 +90,27 @@ void update_ball_position(BALL obj[]){
     BALL* b = &obj[i];
     b->x += b->dx;
     b->y += b->dy;
+
     if(b->x < 0){
-      b->x *= -1;
-      b->dx *= -0.5;
+      b->x *= -WALL_REPULSION;
+      b->dx *= -WALL_REPULSION;
     }
-    if (b->x > 640){
-      b->x = 2*640 - b->x;
-      b->dx *= -0.5;
+
+    if (b->x > WINDOW_LEN){
+      b->x = 2*WINDOW_LEN - b->x;
+      b->dx *= -WALL_REPULSION;
     }
+
     if (b->y < 0){
-      b->y *= -1;
-      b->dy *= -0.5;
+      b->y *= -WALL_REPULSION;
+      b->dy *= -WALL_REPULSION;
     }
-    if(b->y > 480){
-      b->y = 2*480 - b->y;
-      b->dy *= -0.5;
+
+    if(b->y > WINDOW_WIDTH){
+      b->y = 2*WINDOW_WIDTH - b->y;
+      b->dy *= -WALL_REPULSION;
     }
+
   }
 }
 void update_ball_velocity(BALL obj[]){			    
@@ -101,26 +118,45 @@ void update_ball_velocity(BALL obj[]){
 	
   for (int i = 0; i < BT_N * NUMBALLS; i++){
     for (int j = 0; j < BT_N * NUMBALLS; j++){
-      if (i != j && (obj[i].type != obj[j].type)){
-        float dist = distance(&obj[i], &obj[j]);
-        float dx = obj[j].x - obj[i].x; //x component
-        float dy = obj[j].y - obj[i].y; //y component
-        float force = 10000000.0f; //VERY large value, which should never be used
-
-        if (dist > obj->radius * obj->radius){ //very far, no effect
-          force = 0;
-        }
-
-        else if (dist < obj->radius * 2){     //too close, push away
-          force = -(1.0 / (dist * dist)) * exp(-dist * 5.0f);
-        }        
-        
-        else if (dist > 0){ //normal case
-          force = GRAVITY / (dist * dist);
-        }
-        
+      if (i != j){
+        //float dist = distance(&obj[i], &obj[j]);
+        float dx = obj[j].x - obj[i].x;
+        float dy = obj[j].y - obj[i].y;
+        float dist_squared = dx * dx + dy * dy;
+        float min_dist = obj[i].radius + obj[j].radius;
+        float min_dist_squared = min_dist * min_dist;
+        float dist = sqrt(dist_squared);
         dx /= dist;
         dy /= dist;
+
+        float force = 0.0f;
+        
+        if (dist_squared > 100 * min_dist_squared) {
+          force = 0.0f;
+        }
+        else if (dist_squared < min_dist_squared) {
+          // Repulsion if too close
+          force = -REPULSION_STRENGTH * (1.0f - dist_squared / min_dist_squared);
+        } 
+        else {
+          // Attraction with gravity-like force
+          force = GRAVITY / dist_squared;
+          force *= color_repvals[obj[i].type][obj[j].type];
+        }
+        
+       //if (dist > (3 * obj->radius * obj->radius)){ //very far, no effect
+       //   force = 0;
+       // }
+       // else if (dist < (obj->radius * obj->radius)){     //too close, push away
+       //   force = -(1.0 / exp(dist * obj->radius));
+       // }        
+       // 
+       // else if (dist > 0){ //normal case
+       //   force = GRAVITY / (dist * dist);
+       // }
+       // 
+       // dx /= dist;
+       // dy /= dist;
         obj[i].dx += dx * force;
         obj[i].dy += dy * force;
       }
@@ -167,7 +203,7 @@ int main(){
 	al_set_new_display_option(ALLEGRO_SAMPLES, 8, ALLEGRO_SUGGEST);
 	al_set_new_bitmap_flags(ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
 
-	ALLEGRO_DISPLAY* disp = al_create_display(640, 480);
+	ALLEGRO_DISPLAY* disp = al_create_display(WINDOW_LEN, WINDOW_WIDTH);
 	must_init(disp, "display");
 
   must_init(al_init_primitives_addon(), "primitives");
