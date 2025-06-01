@@ -3,7 +3,6 @@
 #include <vector>
 
 class Stock;
-
 class Industry{
   private:  
     std::string industry_name;

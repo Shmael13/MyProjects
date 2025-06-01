@@ -1,3 +1,4 @@
+//DO NOT NEED - i.e implement later.
 #pragma once
 #include <unorderedset>
 #include "stock_frame.cpp"
@@ -5,5 +6,4 @@
 
 struct MarketDataframe{
   std::unordered_map<std::string, StockFrameLL> sf_ll;
-    
 }

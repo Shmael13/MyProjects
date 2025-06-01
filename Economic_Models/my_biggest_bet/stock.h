@@ -3,6 +3,7 @@
 #include <memory>
 #include "utils/stock_frame.h"
 
+
 class Industry;
 
 class Stock{
@@ -13,6 +14,7 @@ class Stock{
     long int vol_traded;
     long int num_stocks;
     long long getCurrTime() const;
+    static long long exchange_start_time;
 
   public:
   //Init

@@ -1,11 +1,14 @@
-#include "stock.h"
-#include "utils/industry.h"
 #include <chrono>
+#include "stock.h"
+#include "exchange.h"
+#include "utils/industry.h"
 
 Stock::Stock(std::string ticker, std::shared_ptr<Industry> industryPtr, double curr_price, long int num_stocks)
     :ticker(ticker), industry(industryPtr), curr_price(curr_price), vol_traded(0), num_stocks(num_stocks){
     industry->addStock(this);
 }
+
+long long Stock::exchange_start_time = Exchange::getExchangeStartTime();
 
 //Getter Methods
 std::string Stock::getIndustryName() const{
@@ -44,6 +47,7 @@ void Stock::setVolTraded(long int vol_traded){
 void Stock::setNumStocks(long int num_stocks){
   this->num_stocks = num_stocks;
 }
+
 
 long long Stock::getCurrTime() const{
   return std::chrono::duration_cast<std::chrono::milliseconds>(
