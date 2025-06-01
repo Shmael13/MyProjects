@@ -2,4 +2,9 @@ clusters: clusters.c
 	gcc clusters.c -o clusters -lallegro -lallegro_primitives -lallegro_image -lm -lallegro_font -lallegro_ttf -Wall -Werror -Wextra
 
 game_of_life: game_of_life.c
-	gcc game_of_life.c -lallegro -lallegro_font -lallegro_image -lallegro_primitives -Wall -Werror -Wextra
+	gcc game_of_life.c -o game_of_life -lallegro -lm -lallegro_font -lallegro_image -lallegro_primitives -Wall -Werror -Wextra
+
+.PHONY: clean
+
+clean:
+	rm -f *.o *.exe *.out clusters game_of_life

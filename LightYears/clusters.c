@@ -4,27 +4,28 @@
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
 
-#define WINDOW_WIDTH 700
+#define WINDOW_WIDTH 1000
 #define WINDOW_HEIGHT 700
 
-#define BALL_RADIUS 5
+#define BALL_RADIUS 3
 #define NUM_TYPES 3
-#define BALLS_PER_TYPE 130
+#define BALLS_PER_TYPE 150
 #define TOTAL_BALLS (NUM_TYPES * BALLS_PER_TYPE)
 
-#define GRAVITY 10.0f
-#define REPULSION 50.0f
+#define REPULSION 5.0f
 #define MIN_DIST 1.0f
+
+//Higher number is less, fricton 1 is equivalent zero friction
 #define FRICTION 0.9f
-#define MAX_SPEED 5.0f
+#define MAX_SPEED 10.0f
 
 #define MIN_COL_DIST 10
-#define MAX_COL_DIST 60
-#define MIN_FORCE -1
-#define MAX_FORCE 1
+#define MAX_COL_DIST 100
+#define MIN_FORCE -0.5
+#define MAX_FORCE 0.5
 
-#define RAND_FORCES 1
-#define RAND_DIST 1
+#define RAND_FORCES true
+#define RAND_DIST false
 
 typedef struct {
     float x, y;
@@ -97,6 +98,13 @@ void apply_forces(Ball balls[]) {
 
             float dx = b->x - a->x;
             float dy = b->y - a->y;
+            
+            //Wraparound logic for forces
+            if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
+            if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+            if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
+            if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+            
             float dist2 = distance_squared(dx, dy);
             if (dist2 < 1) continue; // avoid div by 0
             float dist = sqrtf(dist2);
@@ -237,7 +245,6 @@ int main() {
     al_destroy_display(disp);
     al_destroy_event_queue(queue);
     al_destroy_timer(timer);
-
-    return 0;
+    exit(0);
 }
 
