@@ -223,6 +223,7 @@ int main() {
               randomize_color_dist();
               break;
             }
+	    [[fallthrough]];
           case ALLEGRO_EVENT_DISPLAY_CLOSE:
             running = false;
             break;
