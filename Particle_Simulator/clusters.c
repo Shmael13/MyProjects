@@ -3,12 +3,13 @@
 #include <math.h>
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
+#include <signal.h>
 
-#define WINDOW_WIDTH 1000
-#define WINDOW_HEIGHT 700
+#define WINDOW_WIDTH 500
+#define WINDOW_HEIGHT 500
 
-#define BALL_RADIUS 3
-#define NUM_TYPES 3
+#define BALL_RADIUS 1
+#define NUM_TYPES 4
 #define BALLS_PER_TYPE 150
 #define TOTAL_BALLS (NUM_TYPES * BALLS_PER_TYPE)
 
@@ -19,10 +20,10 @@
 #define FRICTION 0.9f
 #define MAX_SPEED 10.0f
 
-#define MIN_COL_DIST 10
+#define MIN_COL_DIST 60
 #define MAX_COL_DIST 100
-#define MIN_FORCE -0.5
-#define MAX_FORCE 0.5
+#define MIN_FORCE -1
+#define MAX_FORCE 1
 
 #define RAND_FORCES true
 #define RAND_DIST false
@@ -36,11 +37,24 @@ typedef struct {
 enum {
     TYPE_BLUE = 0,
     TYPE_YELLOW,
-    TYPE_GREEN
+    TYPE_GREEN,
+    TYPE_PURPLE
 };
 
-int color_distances[NUM_TYPES + 1][NUM_TYPES + 1] = {{60, 60, 100}, {100, 100, 100}, {60, 60, 60}};
-float color_forces[NUM_TYPES + 1][NUM_TYPES + 1] = {{1, 1, -0.5}, {0.5, 0.5, 0.25}, {1, 0.75, 0.5}};
+int color_distances[NUM_TYPES + 1][NUM_TYPES + 1] = {{60, 60, 100, 100}, {100, 100, 100, 100}, {60, 60, 60, 100}, {60, 60, 60, 60}};
+float color_forces[NUM_TYPES + 1][NUM_TYPES + 1] = {{1, 1, -0.5, 1}, {0.5, 0.5, 0.25, -1}, {1, 0.75, 0.5, 1}, {1, 2, 1, 1}};
+
+int max_color_dist(){
+  int max_dist = 0;
+  for (int i = 0; i < NUM_TYPES; i++){
+    for (int j = 0; j < NUM_TYPES; j++){
+      if (color_distances[i][j] > max_dist){
+        max_dist = color_distances[i][j];
+      }
+    }
+  }
+  return max_dist;
+}
 
 float rand_float(float min, float max) {
     return min + ((float)rand() / (float)RAND_MAX) * (max - min);
@@ -51,16 +65,16 @@ int getRandomInt(int min, int max) {
 }
 
 void randomize_color_dist(void){
-  for (int i = 0; i == NUM_TYPES; i++){
-    for (int j = 0; j == NUM_TYPES; j++){
+  for (int i = 0; i < NUM_TYPES + 1; i++){
+    for (int j = 0; j < NUM_TYPES + 1; j++){
       color_distances[i][j] = getRandomInt(MIN_COL_DIST, MAX_COL_DIST);
     }
   }
 }
 
 void randomize_color_forces(void){
-  for (int i = 0; i <= NUM_TYPES; i++){
-    for (int j = 0; j <= NUM_TYPES; j++){
+  for (int i = 0; i < NUM_TYPES + 1; i++){
+    for (int j = 0; j < NUM_TYPES + 1; j++){
       color_forces[i][j] = rand_float(MIN_FORCE, MAX_FORCE);
     }
   }
@@ -84,12 +98,28 @@ float clamp_speed(float v, float max) {
 // Returns the force magnitude between two types at a distance
 float compute_force(int type1, int type2, float dist) {
     // Distance-based custom interaction logic
-    float col_forces = color_forces[type1][type2];
-    int col_dist = color_distances[type1][type2];
-    return (dist < col_dist) ? -REPULSION / dist : col_forces;
+    //float col_forces = color_forces[type1][type2];
+    //int col_dist = color_distances[type1][type2];
+    //return (dist < col_dist) ? -REPULSION / dist : col_forces;
+    float max_influence = color_distances[type1][type2];
+    if (dist > max_influence){return 0;}
+    if (dist < 0.01f) dist = 0.01f; // Avoid division by zero
+    
+    
+    float ideal = max_influence * 2; //the midpoint between the max_ifluence and 0 distance is the maximum force.
+    float strength = color_forces[type1][type2];
+    // Gaussian parameters
+    float sigma = ideal / 3.0f;
+    
+    //Forces follow gaussian distribution
+    float exponent = -((dist - ideal) * (dist - ideal)) / (2 * sigma * sigma);
+    
+    return strength * expf(exponent);
 }
 
 void apply_forces(Ball balls[]) {
+    //float max_interaction = max_color_dist();
+    //float max_sq_dist = max_interaction * max_interaction;
     for (int i = 0; i < TOTAL_BALLS; i++) {
         Ball *a = &balls[i];
         for (int j = 0; j < TOTAL_BALLS; j++) {
@@ -101,14 +131,16 @@ void apply_forces(Ball balls[]) {
             
             //Wraparound logic for forces
             if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
-            if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+            else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
             if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
-            if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+            else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
             
-            float dist2 = distance_squared(dx, dy);
-            if (dist2 < 1) continue; // avoid div by 0
-            float dist = sqrtf(dist2);
-
+            float dist_sq = distance_squared(dx, dy);
+            if ((dist_sq < 0.1)) continue; // avoid div by 0
+            float max_dist = color_distances[a->type][b->type];
+            if (dist_sq > max_dist * max_dist){continue;}
+            
+            float dist = sqrtf(dist_sq);
             float force = compute_force(a->type, b->type, dist);
             dx /= dist;
             dy /= dist;
@@ -120,8 +152,12 @@ void apply_forces(Ball balls[]) {
         // Apply friction and clamp velocity
         a->dx *= FRICTION;
         a->dy *= FRICTION;
-        a->dx = clamp_speed(a->dx, MAX_SPEED);
-        a->dy = clamp_speed(a->dy, MAX_SPEED);
+        float speed_sq = a->dx * a->dx + a->dy * a->dy;
+        if (speed_sq > MAX_SPEED * MAX_SPEED) {
+          float speed = sqrtf(speed_sq);
+          a->dx = (a->dx / speed) * MAX_SPEED;
+          a->dy = (a->dy / speed) * MAX_SPEED;
+        }
     }
 }
 
@@ -165,6 +201,7 @@ void draw_balls(Ball balls[]) {
             case TYPE_BLUE: color = al_map_rgb(0, 150, 255); break;
             case TYPE_YELLOW: color = al_map_rgb(255, 255, 0); break;
             case TYPE_GREEN: color = al_map_rgb(0, 255, 100); break;
+            case TYPE_PURPLE: color = al_map_rgb(128, 0, 128); break;
         }
         al_draw_filled_circle(balls[i].x, balls[i].y, BALL_RADIUS, color);
     }
@@ -184,7 +221,16 @@ void init_balls(Ball balls[]) {
     }
 }
 
+void exit_handl(){
+  char str[] = "There was a segfault - may be due to incorrect Allegro install.\nExiting Gracefully...\n";
+  int unused = write(1, str, sizeof(str));
+  (void) unused;
+  exit(1);
+}
+
 int main() {
+    signal(SIGSEGV, exit_handl);
+    
     srand(time(NULL));
     must_init(al_init(), "Allegro");
     must_init(al_install_keyboard(), "Keyboard");
