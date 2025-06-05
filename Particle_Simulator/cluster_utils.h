@@ -7,8 +7,8 @@
 
 #define NUM_TYPES 4
 
-#define MIN_COL_DIST 60
-#define MAX_COL_DIST 100
+#define MIN_COL_DIST 1
+#define MAX_COL_DIST 150
 #define MIN_FORCE -1
 #define MAX_FORCE 1
 

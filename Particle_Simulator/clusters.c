@@ -1,14 +1,19 @@
-#include "cluster_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
 #include <signal.h>
+#include <pthread.h>
+#include "cluster_utils.h"
 
+#define WINDOW_WIDTH 1000
+#define WINDOW_HEIGHT 700
 
-#define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 400
+#define GRID_SIZE 50 //MUST BE BIGGER THAN MAX_COL_DIST
+#define GRID_COLS (WINDOW_WIDTH / GRID_SIZE)
+#define GRID_ROWS (WINDOW_HEIGHT / GRID_SIZE)
+#define GRID_CELLCOUNT (GRID_COLS * GRID_ROWS)
 
 #define BALL_RADIUS 1
 #define NUM_TYPES 4
@@ -19,12 +24,13 @@
 #define MIN_DIST 1.0f
 
 //Higher number is less, fricton 1 is equivalent zero friction
-#define FRICTION 0.9f
+#define FRICTION 0.99f
 #define MAX_SPEED 10.0f
-
 
 #define RAND_FORCES true
 #define RAND_DIST false
+
+#define NUM_WORKERS 50
 
 enum {
     TYPE_BLUE = 0,
@@ -34,19 +40,90 @@ enum {
 };
 
 
+Ball* grid_buffer[TOTAL_BALLS];
 
-//void div_to_grid(){
-//  const int max_col_dist = max_color_dist();
-//  const int grid_xlen = max_col_dist < WINDOW_WIDTH ? max_col_dist : WINDOW_WIDTH;
-//  const int grid_ylen = max_col_dist < WINDOW_HEIGHT ? max_col_dist : WINDOW_HEIGHT;
-//  //divide the screen into grids of size grid_len
-//  const int num_grids = (WINDOW_WIDTH  * WINDOW_HEIGHT) / (grid_xlen * grid_ylen);
-//  return num_grids;
-//}
+//Each grid cell contains grid_buffer start index, and count of balls in the cell
+typedef struct{
+  int start;
+  int count;
+} CellIndex;
 
+CellIndex cell_Indicies[GRID_CELLCOUNT];
 
+void clear_grid(void){
+  for (int i = 0; i < GRID_CELLCOUNT; i++){
+    cell_Indicies[i].count = 0;
+    cell_Indicies[i].start = 0;
+  }
+}
 
+  //for (int i = 0; i < GRID_ROWS; i++){
+  //  for (int j = 0; j < GRID_COLS; j++){
+  //    BallNode* node = grid_arr[i][j];
+  //    while (node){
+  //      BallNode* next = node->next;
+  //      free(node);
+  //      node = next;
+  //    }
+  //    grid_arr[i][j] = NULL;
+  //  }
+  //}
+  //}
 
+void assign_balls_to_grid(Ball balls[]){
+  clear_grid();
+  int ball_idx[TOTAL_BALLS];
+  //Count how many balls belong in each cell
+  for (int i = 0; i < TOTAL_BALLS; i++){
+    Ball* b = &balls[i];
+    int grid_col = ((int)(b->x / GRID_SIZE) + GRID_COLS) % GRID_COLS;
+    int grid_row = ((int)(b->y / GRID_SIZE) + GRID_ROWS) % GRID_ROWS;
+
+    //int grid_row = (int)b->y / GRID_SIZE;
+    //int grid_col = (int)b->x / GRID_SIZE;
+    if (grid_col < 0 || grid_col >= GRID_COLS || grid_row < 0 || grid_row >= GRID_ROWS) {
+    printf("WARNING: Ball out of grid bounds: (%.1f, %.1f)\n", b->x, b->y);
+}
+    int index = grid_row * GRID_COLS + grid_col;
+    ball_idx[i] = index;
+    cell_Indicies[index].count++;
+  }
+
+  //Assign the start index.
+  int start = 0;
+  for (int i = 0; i < GRID_CELLCOUNT; i++){
+    cell_Indicies[i].start = start;
+    start += cell_Indicies[i].count;
+    cell_Indicies[i].count = 0;  //Clear the count - to be used in the next step
+  }
+
+  //Fill the grid_buffer
+  for (int i = 0; i < TOTAL_BALLS; i++){
+    Ball* b = &balls[i];
+    int index = ball_idx[i];
+    int insert_idx = cell_Indicies[index].start + cell_Indicies[index].count;
+    grid_buffer[insert_idx] = b;
+    cell_Indicies[index].count++;
+  }
+
+  //for (int i = 0; i < GRID_CELLCOUNT; i++){
+  //  CellIndex* ci = cell_Indicies[i];
+  //  ci->start = prev->start + prev->count;
+  //  for (int j = 0; j < TOTAL_BALLS; j++){
+  //    Ball* b = &balls[j];
+  //    int grid_row = ((int)b->y / GRID_SIZE);
+  //    int grid_col = ((int)b->x / GRID_SIZE);
+  //    if (grid_row < 0 || grid_row >= GRID_ROWS || grid_col < 0 || grid_col >= GRID_COLS){
+  //      printf("ERR IN ASIGNING\n");
+  //    }
+  //    //The ball is not within the cell
+  //    if (grid_row % GRID_ROW && grid_col % GRID_COL) continue;
+  //    grid_buffer[ci->start + ci->count] = b;
+  //    ci->count++;
+  //  }
+  //  prev = ci;
+  //}
+}
 
 // Returns the force magnitude between two types at a distance
 float compute_force(int type1, int type2, float dist) {
@@ -57,8 +134,7 @@ float compute_force(int type1, int type2, float dist) {
     const float max_influence = color_distances[type1][type2];
     if (dist > max_influence){return 0;}
     if (dist < 0.01f) dist = 0.01f; // Avoid division by zero
-    
-    
+
     const float ideal = max_influence * 2; //the midpoint between the max_ifluence and 0 distance is the maximum force.
     const float strength = color_forces[type1][type2];
     // Gaussian parameters
@@ -70,50 +146,151 @@ float compute_force(int type1, int type2, float dist) {
     return strength * expf(exponent);
 }
 
-void apply_forces(Ball balls[]) {
-    //float max_interaction = max_color_dist();
-    //float max_sq_dist = max_interaction * max_interaction;
-    for (int i = 0; i < TOTAL_BALLS; i++) {
-        Ball *a = &balls[i];
-        int a_type = a->type;
-        for (int j = 0; j < TOTAL_BALLS; j++) {
-            if (i == j) continue;
-            Ball *b = &balls[j];
+void apply_ball_forces(Ball* effected, Ball* applier){
+  float dx = applier->x - effected->x;
+  float dy = applier->y - effected->y;
+  
+  //Wraparound logic for distances 
+  if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
+  else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+  if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
+  else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+          
+  float dist_sq = distance_squared(dx, dy);
+  if ((dist_sq < 0.1)) return; // avoid div by 0
 
-            float dx = b->x - a->x;
-            float dy = b->y - a->y;
-            
-            //Wraparound logic for forces
-            if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
-            else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
-            if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
-            else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
-            
-            float dist_sq = distance_squared(dx, dy);
-            if ((dist_sq < 0.1)) continue; // avoid div by 0
-            float max_dist = color_distances[a_type][b->type];
-            if (dist_sq > max_dist * max_dist){continue;}
-            
-            float dist = sqrtf(dist_sq);
-            float force = compute_force(a_type, b->type, dist);
-            dx /= dist;
-            dy /= dist;
+  float max_dist = color_distances[effected->type][applier->type];
+  if (dist_sq > max_dist * max_dist){return;}
+  float dist = sqrtf(dist_sq);
+  float force = compute_force(effected->type, applier->type, dist);
+  dx /= dist;
+  dy /= dist;
 
-            a->dx += dx * force;
-            a->dy += dy * force;
-        }
-
-        // Apply friction and clamp velocity
-        a->dx *= FRICTION;
-        a->dy *= FRICTION;
-        const float speed_sq = a->dx * a->dx + a->dy * a->dy;
-        if (speed_sq > MAX_SPEED * MAX_SPEED) {
-          float speed = sqrtf(speed_sq);
-          a->dx = (a->dx / speed) * MAX_SPEED;
-          a->dy = (a->dy / speed) * MAX_SPEED;
-        }
-    }
+  effected->dx += dx * force;
+  effected->dy += dy * force;
 }
+
+void apply_ball_resistances(Ball* this){
+  // Apply friction and clamp velocity
+  this->dx *= FRICTION;
+  this->dy *= FRICTION;
+  
+  const float speed_sq = this->dx * this->dx + this->dy * this->dy;
+  if (speed_sq > MAX_SPEED * MAX_SPEED) {
+    float speed = sqrtf(speed_sq);
+    this->dx = (this->dx / speed) * MAX_SPEED;
+    this->dy = (this->dy / speed) * MAX_SPEED;
+  }
+}
+
+void apply_cell_forces(int cellnum){
+  //each cell interacts with 8 other cells, and itself.
+
+  int row = cellnum / GRID_COLS;
+  int col = cellnum % GRID_COLS;
+
+  int interacting_cells[9];
+  int count = 0;
+  for (int dr = -1; dr <= 1; dr++) {
+    for (int dc = -1; dc <= 1; dc++) {
+        int n_row = (row + dr + GRID_ROWS) % GRID_ROWS;
+        int n_col = (col + dc + GRID_COLS) % GRID_COLS;
+        interacting_cells[count++] = n_row * GRID_COLS + n_col;
+    }
+  }
+  
+  CellIndex effected_ci = cell_Indicies[cellnum];
+  //grid_buffer contains Ball*
+  //interacting_cells contains the indexes of the interacting cells within cell_Indicies
+  for (int i = 0; i < 9; i++){
+    int applier_idx = interacting_cells[i];
+    CellIndex appl_ci = cell_Indicies[applier_idx];
+    
+    for (int k = 0; k < effected_ci.count; k++){
+      Ball* effected = grid_buffer[effected_ci.start + k];
+      
+      for (int j = 0; j < appl_ci.count; j++){
+        Ball* applier = grid_buffer[appl_ci.start + j];
+        if (i == 5 && j == k) continue;   //It is the same ball, so no forces act on it
+        apply_ball_forces(effected, applier);
+      }
+      apply_ball_resistances(effected);
+    }
+  }
+}
+ 
+void apply_forces(Ball balls[]){
+  assign_balls_to_grid(balls);
+  
+  for (int i = 0; i < GRID_CELLCOUNT; i++){
+    apply_cell_forces(i);
+  }
+}
+
+void* forces_worker(void* args){
+  int id = *(int *)args;
+  for (int i = id; i < GRID_CELLCOUNT; i+= NUM_WORKERS){
+    apply_cell_forces(i);
+  }
+  return NULL;
+}
+
+void apply_forces_parallel(Ball balls[]){
+  assign_balls_to_grid(balls);
+  pthread_t threads[NUM_WORKERS];
+  int ids[NUM_WORKERS];
+
+  for (int i = 0; i < NUM_WORKERS; i++){
+    ids[i] = i;
+    pthread_create(&threads[i], NULL, forces_worker, &ids[i]);
+  }
+  
+  for (int i = 0; i < NUM_WORKERS; i++){
+    pthread_join(threads[i], NULL);
+  }
+}
+    
+    //for (int i = 0; i < TOTAL_BALLS; i++) {
+    //    Ball *a = &balls[i];
+    //    int a_type = a->type;
+    //    for (int j = 0; j < TOTAL_BALLS; j++) {
+    //        if (i == j) continue;
+    //        Ball *b = &balls[j];
+
+    //        float dx = b->x - a->x;
+    //        float dy = b->y - a->y;
+    //        
+    //        //Wraparound logic for forces
+    //        if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
+    //        else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+    //        if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
+    //        else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+    //        
+    //        float dist_sq = distance_squared(dx, dy);
+    //        if ((dist_sq < 0.1)) continue; // avoid div by 0
+    //        float max_dist = color_distances[a_type][b->type];
+    //        if (dist_sq > max_dist * max_dist){continue;}
+    //        
+    //        float dist = sqrtf(dist_sq);
+    //        float force = compute_force(a_type, b->type, dist);
+    //        dx /= dist;
+    //        dy /= dist;
+
+    //        a->dx += dx * force;
+    //        a->dy += dy * force;
+    //    }
+
+    //    // Apply friction and clamp velocity
+    //    a->dx *= FRICTION;
+    //    a->dy *= FRICTION;
+    //    const float speed_sq = a->dx * a->dx + a->dy * a->dy;
+    //    if (speed_sq > MAX_SPEED * MAX_SPEED) {
+    //      float speed = sqrtf(speed_sq);
+    //      a->dx = (a->dx / speed) * MAX_SPEED;
+    //      a->dy = (a->dy / speed) * MAX_SPEED;
+    //    }
+    //}
+
 
 void update_positions(Ball balls[]) {
     for (int i = 0; i < TOTAL_BALLS; i++) {
@@ -166,8 +343,8 @@ void init_balls(Ball balls[]) {
     for (int t = 0; t < NUM_TYPES; t++) {
         for (int i = 0; i < BALLS_PER_TYPE; i++) {
             int idx = t * BALLS_PER_TYPE + i;
-            balls[idx].x = WINDOW_WIDTH / 2; //rand() % WINDOW_WIDTH;
-            balls[idx].y = WINDOW_HEIGHT / 2; //rand() % WINDOW_HEIGHT;
+            balls[idx].x = rand() % WINDOW_WIDTH;
+            balls[idx].y = rand() % WINDOW_HEIGHT;
             balls[idx].dx = (((float)rand() / RAND_MAX) - 0.5f) * 2;
             balls[idx].dy = (((float)rand() / RAND_MAX) - 0.5f) * 2;
             balls[idx].type = t;
@@ -177,7 +354,8 @@ void init_balls(Ball balls[]) {
 
 void exit_handl(){
   char str[] = "There was a segfault - may be due to incorrect Allegro install.\nExiting Gracefully...\n";
-  int unused = write(1, str, sizeof(str));
+  int unused = write(2, str, sizeof(str));
+  fprintf(stderr, "Segfault or other crash occurred.\n");
   (void) unused;
   exit(1);
 }
@@ -237,6 +415,7 @@ int main() {
             }
           /* fallthrough */
           case ALLEGRO_EVENT_DISPLAY_CLOSE:
+            printf("DISPLAY_CLOSE\n");
             running = false;
             break;
         }
@@ -245,7 +424,7 @@ int main() {
             redraw = false;
         }
     }
-
+    printf("EXITING\n");
     al_destroy_display(disp);
     al_destroy_event_queue(queue);
     al_destroy_timer(timer);
