@@ -1,3 +1,4 @@
+#include "cluster_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -5,12 +6,13 @@
 #include <allegro5/allegro_primitives.h>
 #include <signal.h>
 
-#define WINDOW_WIDTH 500
-#define WINDOW_HEIGHT 500
+
+#define WINDOW_WIDTH 400
+#define WINDOW_HEIGHT 400
 
 #define BALL_RADIUS 1
 #define NUM_TYPES 4
-#define BALLS_PER_TYPE 150
+#define BALLS_PER_TYPE 200
 #define TOTAL_BALLS (NUM_TYPES * BALLS_PER_TYPE)
 
 #define REPULSION 5.0f
@@ -20,19 +22,9 @@
 #define FRICTION 0.9f
 #define MAX_SPEED 10.0f
 
-#define MIN_COL_DIST 60
-#define MAX_COL_DIST 100
-#define MIN_FORCE -1
-#define MAX_FORCE 1
 
 #define RAND_FORCES true
 #define RAND_DIST false
-
-typedef struct {
-    float x, y;
-    float dx, dy;
-    int type;
-} Ball;
 
 enum {
     TYPE_BLUE = 0,
@@ -41,59 +33,20 @@ enum {
     TYPE_PURPLE
 };
 
-int color_distances[NUM_TYPES + 1][NUM_TYPES + 1] = {{60, 60, 100, 100}, {100, 100, 100, 100}, {60, 60, 60, 100}, {60, 60, 60, 60}};
-float color_forces[NUM_TYPES + 1][NUM_TYPES + 1] = {{1, 1, -0.5, 1}, {0.5, 0.5, 0.25, -1}, {1, 0.75, 0.5, 1}, {1, 2, 1, 1}};
 
-int max_color_dist(){
-  int max_dist = 0;
-  for (int i = 0; i < NUM_TYPES; i++){
-    for (int j = 0; j < NUM_TYPES; j++){
-      if (color_distances[i][j] > max_dist){
-        max_dist = color_distances[i][j];
-      }
-    }
-  }
-  return max_dist;
-}
 
-float rand_float(float min, float max) {
-    return min + ((float)rand() / (float)RAND_MAX) * (max - min);
-}
+//void div_to_grid(){
+//  const int max_col_dist = max_color_dist();
+//  const int grid_xlen = max_col_dist < WINDOW_WIDTH ? max_col_dist : WINDOW_WIDTH;
+//  const int grid_ylen = max_col_dist < WINDOW_HEIGHT ? max_col_dist : WINDOW_HEIGHT;
+//  //divide the screen into grids of size grid_len
+//  const int num_grids = (WINDOW_WIDTH  * WINDOW_HEIGHT) / (grid_xlen * grid_ylen);
+//  return num_grids;
+//}
 
-int getRandomInt(int min, int max) {
-    return rand() % (max - min + 1) + min;
-}
 
-void randomize_color_dist(void){
-  for (int i = 0; i < NUM_TYPES + 1; i++){
-    for (int j = 0; j < NUM_TYPES + 1; j++){
-      color_distances[i][j] = getRandomInt(MIN_COL_DIST, MAX_COL_DIST);
-    }
-  }
-}
 
-void randomize_color_forces(void){
-  for (int i = 0; i < NUM_TYPES + 1; i++){
-    for (int j = 0; j < NUM_TYPES + 1; j++){
-      color_forces[i][j] = rand_float(MIN_FORCE, MAX_FORCE);
-    }
-  }
-}
 
-void must_init(bool test, const char *description) {
-    if (!test) {
-        printf("Failed to initialize: %s\n", description);
-        exit(1);
-    }
-}
-
-float distance_squared(float dx, float dy) {
-    return dx * dx + dy * dy;
-}
-
-float clamp_speed(float v, float max) {
-    return (v > max) ? max : ((v < -max) ? -max : v);
-}
 
 // Returns the force magnitude between two types at a distance
 float compute_force(int type1, int type2, float dist) {
@@ -101,18 +54,18 @@ float compute_force(int type1, int type2, float dist) {
     //float col_forces = color_forces[type1][type2];
     //int col_dist = color_distances[type1][type2];
     //return (dist < col_dist) ? -REPULSION / dist : col_forces;
-    float max_influence = color_distances[type1][type2];
+    const float max_influence = color_distances[type1][type2];
     if (dist > max_influence){return 0;}
     if (dist < 0.01f) dist = 0.01f; // Avoid division by zero
     
     
-    float ideal = max_influence * 2; //the midpoint between the max_ifluence and 0 distance is the maximum force.
-    float strength = color_forces[type1][type2];
+    const float ideal = max_influence * 2; //the midpoint between the max_ifluence and 0 distance is the maximum force.
+    const float strength = color_forces[type1][type2];
     // Gaussian parameters
-    float sigma = ideal / 3.0f;
+    const float sigma = ideal / 3.0f;
     
     //Forces follow gaussian distribution
-    float exponent = -((dist - ideal) * (dist - ideal)) / (2 * sigma * sigma);
+    const float exponent = -((dist - ideal) * (dist - ideal)) / (2 * sigma * sigma);
     
     return strength * expf(exponent);
 }
@@ -122,6 +75,7 @@ void apply_forces(Ball balls[]) {
     //float max_sq_dist = max_interaction * max_interaction;
     for (int i = 0; i < TOTAL_BALLS; i++) {
         Ball *a = &balls[i];
+        int a_type = a->type;
         for (int j = 0; j < TOTAL_BALLS; j++) {
             if (i == j) continue;
             Ball *b = &balls[j];
@@ -137,11 +91,11 @@ void apply_forces(Ball balls[]) {
             
             float dist_sq = distance_squared(dx, dy);
             if ((dist_sq < 0.1)) continue; // avoid div by 0
-            float max_dist = color_distances[a->type][b->type];
+            float max_dist = color_distances[a_type][b->type];
             if (dist_sq > max_dist * max_dist){continue;}
             
             float dist = sqrtf(dist_sq);
-            float force = compute_force(a->type, b->type, dist);
+            float force = compute_force(a_type, b->type, dist);
             dx /= dist;
             dy /= dist;
 
@@ -152,7 +106,7 @@ void apply_forces(Ball balls[]) {
         // Apply friction and clamp velocity
         a->dx *= FRICTION;
         a->dy *= FRICTION;
-        float speed_sq = a->dx * a->dx + a->dy * a->dy;
+        const float speed_sq = a->dx * a->dx + a->dy * a->dy;
         if (speed_sq > MAX_SPEED * MAX_SPEED) {
           float speed = sqrtf(speed_sq);
           a->dx = (a->dx / speed) * MAX_SPEED;
@@ -212,8 +166,8 @@ void init_balls(Ball balls[]) {
     for (int t = 0; t < NUM_TYPES; t++) {
         for (int i = 0; i < BALLS_PER_TYPE; i++) {
             int idx = t * BALLS_PER_TYPE + i;
-            balls[idx].x = rand() % WINDOW_WIDTH;
-            balls[idx].y = rand() % WINDOW_HEIGHT;
+            balls[idx].x = WINDOW_WIDTH / 2; //rand() % WINDOW_WIDTH;
+            balls[idx].y = WINDOW_HEIGHT / 2; //rand() % WINDOW_HEIGHT;
             balls[idx].dx = (((float)rand() / RAND_MAX) - 0.5f) * 2;
             balls[idx].dy = (((float)rand() / RAND_MAX) - 0.5f) * 2;
             balls[idx].type = t;
@@ -277,7 +231,11 @@ int main() {
               randomize_color_dist();
               break;
             }
-	    [[fallthrough]];
+            if (ev.keyboard.keycode == ALLEGRO_KEY_I){
+              init_balls(balls);
+              break;
+            }
+          /* fallthrough */
           case ALLEGRO_EVENT_DISPLAY_CLOSE:
             running = false;
             break;
@@ -293,4 +251,3 @@ int main() {
     al_destroy_timer(timer);
     exit(0);
 }
-
