@@ -5,12 +5,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define NUM_TYPES 4
+#define NUM_TYPES 6
 
 #define MIN_COL_DIST 1
-#define MAX_COL_DIST 150
-#define MIN_FORCE -1
-#define MAX_FORCE 1
+#define MAX_COL_DIST 100
+#define MIN_FORCE -2
+#define MAX_FORCE 2
 
 typedef struct {
     float x, y;
@@ -18,8 +18,8 @@ typedef struct {
     int type;
 } Ball;
 
-extern int color_distances[NUM_TYPES + 1][NUM_TYPES + 1];
-extern float color_forces[NUM_TYPES + 1][NUM_TYPES + 1];
+extern int color_distances[NUM_TYPES][NUM_TYPES];
+extern float color_forces[NUM_TYPES][NUM_TYPES];
 
 int max_color_dist();
 float rand_float(float min, float max);
