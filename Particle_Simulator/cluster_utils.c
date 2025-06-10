@@ -46,16 +46,16 @@ int getRandomInt(int min, int max) {
 }
 
 void randomize_color_dist(void){
-  for (int i = 0; i < NUM_TYPES + 1; i++){
-    for (int j = 0; j < NUM_TYPES + 1; j++){
+  for (int i = 0; i < NUM_TYPES; i++){
+    for (int j = 0; j < NUM_TYPES; j++){
       color_distances[i][j] = getRandomInt(MIN_COL_DIST, MAX_COL_DIST);
     }
   }
 }
 
 void randomize_color_forces(void){
-  for (int i = 0; i < NUM_TYPES + 1; i++){
-    for (int j = 0; j < NUM_TYPES + 1; j++){
+  for (int i = 0; i < NUM_TYPES; i++){
+    for (int j = 0; j < NUM_TYPES; j++){
       color_forces[i][j] = rand_float(MIN_FORCE, MAX_FORCE);
     }
   }

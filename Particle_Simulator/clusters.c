@@ -10,31 +10,29 @@
 #include <omp.h>
 #include "cluster_utils.h"
 
-#define WINDOW_WIDTH 300
-#define WINDOW_HEIGHT 300
+#define WINDOW_WIDTH 700
+#define WINDOW_HEIGHT 700
+#define FRAME_RATE 20
 
-#define GRID_SIZE 50 //MUST BE BIGGER THAN MAX_COL_DIST
+#define GRID_SIZE 25 //MUST BE BIGGER THAN MAX_COL_DIST(in cluster_utils.h)
 #define GRID_COLS (WINDOW_WIDTH / GRID_SIZE)
 #define GRID_ROWS (WINDOW_HEIGHT / GRID_SIZE)
 #define GRID_CELLCOUNT (GRID_COLS * GRID_ROWS)
 
 #define BALL_RADIUS 1.5
-#define BALLS_PER_TYPE 75
+#define BALLS_PER_TYPE 650
 #define TOTAL_BALLS (NUM_TYPES * BALLS_PER_TYPE)
 
 #define REPULSION 5.0f
-#define MIN_DIST 1.0f
 
-//Higher number is less, fricton 1 is equivalent zero friction
-#define FRICTION 0.99f
-#define MAX_SPEED 10.0f
+//Higher number is less friction, FRICTION of 1 is equivalent to no friction 
+#define FRICTION 0.8f
+#define MAX_SPEED 40.0f
 
 #define RAND_FORCES true
 #define RAND_DIST false
 
-#define THREADS_PER_GRID 5
-#define THREADS_PER_CELL 1
-#define THREAD_THRESHOLD 300 //If this many particles are present within a single cell, it spawns a new thread to speedup calculation
+#define THREAD_THRESHOLD (BALLS_PER_TYPE / 2) //If this many particles are present within a single cell, it spawns a new thread to speedup calculation
 
 enum {
     TYPE_BLUE = 0,
@@ -70,19 +68,6 @@ void clear_grid(void){
     cell_Indicies[i].start = 0;
   }
 }
-
-  //for (int i = 0; i < GRID_ROWS; i++){
-  //  for (int j = 0; j < GRID_COLS; j++){
-  //    BallNode* node = grid_arr[i][j];
-  //    while (node){
-  //      BallNode* next = node->next;
-  //      free(node);
-  //      node = next;
-  //    }
-  //    grid_arr[i][j] = NULL;
-  //  }
-  //}
-  //}
 
 void assign_balls_to_grid(Ball balls[]){
   clear_grid();
@@ -120,32 +105,12 @@ void assign_balls_to_grid(Ball balls[]){
     grid_buffer[insert_idx] = b;
     cell_Indicies[index].count++;
   }
-
-  //for (int i = 0; i < GRID_CELLCOUNT; i++){
-  //  CellIndex* ci = cell_Indicies[i];
-  //  ci->start = prev->start + prev->count;
-  //  for (int j = 0; j < TOTAL_BALLS; j++){
-  //    Ball* b = &balls[j];
-  //    int grid_row = ((int)b->y / GRID_SIZE);
-  //    int grid_col = ((int)b->x / GRID_SIZE);
-  //    if (grid_row < 0 || grid_row >= GRID_ROWS || grid_col < 0 || grid_col >= GRID_COLS){
-  //      printf("ERR IN ASIGNING\n");
-  //    }
-  //    //The ball is not within the cell
-  //    if (grid_row % GRID_ROW && grid_col % GRID_COL) continue;
-  //    grid_buffer[ci->start + ci->count] = b;
-  //    ci->count++;
-  //  }
-  //  prev = ci;
-  //}
 }
+
 
 // Returns the force magnitude between two types at a distance
 float compute_force(int type1, int type2, float dist) {
     // Distance-based custom interaction logic
-    //float col_forces = color_forces[type1][type2];
-    //int col_dist = color_distances[type1][type2];
-    //return (dist < col_dist) ? -REPULSION / dist : col_forces;
     const float max_influence = color_distances[type1][type2];
     if (dist > max_influence){return 0;}
 
@@ -186,6 +151,26 @@ void apply_ball_forces(Ball* effected, Ball* applier){
   float dist = sqrtf(dist_sq);
   if (isnan(dist) || dist <=0.0) return;
 
+  if (dist < 2 * BALL_RADIUS) {
+    float overlap = (2 * BALL_RADIUS - dist) / 2.0f;
+
+    // Normalize direction vector
+    float push_dx = dx * (overlap / dist);
+    float push_dy = dy * (overlap / dist);
+
+    // Move them apart (only affecting the effected ball here)
+    effected->x -= push_dx;
+    effected->y -= push_dy;
+
+
+    // Wraparound correction (if needed)
+    if (effected->x < 0) effected->x += WINDOW_WIDTH;
+    else if (effected->x >= WINDOW_WIDTH) effected->x -= WINDOW_WIDTH;
+
+    if (effected->y < 0) effected->y += WINDOW_HEIGHT;
+    else if (effected->y >= WINDOW_HEIGHT) effected->y -= WINDOW_HEIGHT;
+}
+
   float force = compute_force(effected->type, applier->type, dist);
   float inv_dist = 1 / dist;
   dx *= inv_dist;
@@ -208,39 +193,7 @@ void apply_ball_resistances(Ball* this){
   }
 }
 
-void* cell_worker(void* args){
-  CellWorkerArgs* cw_args = (CellWorkerArgs*) args;
-  int tid = cw_args->tid;
-  const CellIndex* effected_cip = cw_args->effected_cip;
-  const CellIndex* appl_cip = cw_args->appl_cip;
-  const int eff_start = effected_cip->start;
-  const int appl_start = appl_cip->start;
-  for (int k = tid; k < effected_cip->count; k+= THREADS_PER_CELL){
-    Ball* effected = grid_buffer[effected_cip->start + k];
-    
-    for (int j = 0; j < appl_cip->count; j++){
-      Ball* applier = grid_buffer[appl_cip->start + j];
-      if (eff_start == appl_start && j == k) continue;   //It is the same ball, so no forces act on it
-        apply_ball_forces(effected, applier);
-    }
-    apply_ball_resistances(effected);
-  }
-  return NULL;
-}
 
-void apply_parallel_cell_forces(const CellIndex* effected_cip, const CellIndex* appl_cip){
-  pthread_t cell_threads[THREADS_PER_CELL];
-  CellWorkerArgs cw_args[THREADS_PER_CELL];
-  for (int i = 0; i < THREADS_PER_CELL; i++){
-    cw_args[i].tid = i;
-    cw_args[i].effected_cip = effected_cip;
-    cw_args[i].appl_cip = appl_cip;
-    pthread_create(&cell_threads[i], NULL, cell_worker, &cw_args[i]);
-  }
-  for (int i = 0; i < THREADS_PER_CELL; i++){
-    pthread_join(cell_threads[i], NULL);
-  }
-}
 
 void apply_cell_forces(int cellnum){
   //each cell interacts with 8 other cells, and itself.
@@ -263,13 +216,25 @@ void apply_cell_forces(int cellnum){
   for (int i = 0; i < 9; i++){
     int applier_idx = interacting_cells[i];
     CellIndex appl_ci = cell_Indicies[applier_idx];
-    if (effected_ci.count > THREAD_THRESHOLD) apply_parallel_cell_forces(&effected_ci, &appl_ci);
-    
+    if (effected_ci.count > THREAD_THRESHOLD){
+      //apply_parallel_cell_forces(&effected_ci, &appl_ci);
+      #pragma omp parallel for schedule(dynamic)
+      for (int k = 0; k < effected_ci.count; k++){
+        Ball* effected = grid_buffer[effected_ci.start + k];
+        
+        for (int j = 0; j < appl_ci.count; j++){
+          Ball* applier = grid_buffer[appl_ci.start + j];
+          if (applier_idx == cellnum && j == k) continue;   //It is the same ball, so no forces act on it
+          apply_ball_forces(effected, applier);
+        }
+        apply_ball_resistances(effected);
+      }
+
+    }
     else{
       for (int k = 0; k < effected_ci.count; k++){
         Ball* effected = grid_buffer[effected_ci.start + k];
         
-      //#pragma omp parallel for schedule(dynamic)
         for (int j = 0; j < appl_ci.count; j++){
           Ball* applier = grid_buffer[appl_ci.start + j];
           if (applier_idx == cellnum && j == k) continue;   //It is the same ball, so no forces act on it
@@ -290,74 +255,17 @@ void apply_forces(Ball balls[]){
   }
 }
 
-void* forces_worker(void* args){
-  int id = *(int *)args;
-  for (int i = id; i < GRID_CELLCOUNT; i+= THREADS_PER_GRID){
-    apply_cell_forces(i);
-  }
-  return NULL;
-}
-
 void apply_forces_parallel(Ball balls[]){
+  //clock_t start = clock();
   assign_balls_to_grid(balls);
+  //clock_t end = clock();
+  //printf("Assignment took: %.2fms\n", (1000.0 * (end - start)) / CLOCKS_PER_SEC);
+
   #pragma omp parallel for schedule(dynamic)
   for (int i = 0; i < GRID_CELLCOUNT; i++) {
     apply_cell_forces(i);
   }
-
-  //pthread_t threads[THREADS_PER_GRID];
-  //int ids[THREADS_PER_GRID];
-
-  //for (int i = 0; i < THREADS_PER_GRID; i++){
-  //  ids[i] = i;
-  //  pthread_create(&threads[i], NULL, forces_worker, &ids[i]);
-  //}
-  //
-  //for (int i = 0; i < THREADS_PER_GRID; i++){
-  //  pthread_join(threads[i], NULL);
-  //}
 }
-    //for (int i = 0; i < TOTAL_BALLS; i++) {
-    //    Ball *a = &balls[i];
-    //    int a_type = a->type;
-    //    for (int j = 0; j < TOTAL_BALLS; j++) {
-    //        if (i == j) continue;
-    //        Ball *b = &balls[j];
-
-    //        float dx = b->x - a->x;
-    //        float dy = b->y - a->y;
-    //        
-    //        //Wraparound logic for forces
-    //        if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
-    //        else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
-    //        if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
-    //        else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
-    //        
-    //        float dist_sq = distance_squared(dx, dy);
-    //        if ((dist_sq < 0.1)) continue; // avoid div by 0
-    //        float max_dist = color_distances[a_type][b->type];
-    //        if (dist_sq > max_dist * max_dist){continue;}
-    //        
-    //        float dist = sqrtf(dist_sq);
-    //        float force = compute_force(a_type, b->type, dist);
-    //        dx /= dist;
-    //        dy /= dist;
-
-    //        a->dx += dx * force;
-    //        a->dy += dy * force;
-    //    }
-
-    //    // Apply friction and clamp velocity
-    //    a->dx *= FRICTION;
-    //    a->dy *= FRICTION;
-    //    const float speed_sq = a->dx * a->dx + a->dy * a->dy;
-    //    if (speed_sq > MAX_SPEED * MAX_SPEED) {
-    //      float speed = sqrtf(speed_sq);
-    //      a->dx = (a->dx / speed) * MAX_SPEED;
-    //      a->dy = (a->dy / speed) * MAX_SPEED;
-    //    }
-    //}
-
 
 void update_positions(Ball balls[]) {
     for (int i = 0; i < TOTAL_BALLS; i++) {
@@ -413,16 +321,19 @@ void draw_balls(Ball balls[]) {
     al_flip_display();
 }
 
-void init_balls(Ball balls[]) {
-    randomize_color_forces();
-    randomize_color_dist();
-    for (int t = 0; t < NUM_TYPES; t++) {
+void init_balls(Ball balls[], bool first) {
+  if (first){
+  randomize_color_forces();
+  randomize_color_dist();
+  }
+  for (int t = 0; t < NUM_TYPES; t++) {
         for (int i = 0; i < BALLS_PER_TYPE; i++) {
             int idx = t * BALLS_PER_TYPE + i;
-            balls[idx].x = WINDOW_WIDTH / 2; //rand() % WINDOW_WIDTH;
-            balls[idx].y = WINDOW_HEIGHT/ 2; //rand() % WINDOW_WIIGHT;
-            balls[idx].dx = rand_float(-1.0f, 1.0f);
-            balls[idx].dy = rand_float(-1.0f, 1.0f);
+            balls[idx].x = rand() % WINDOW_WIDTH;
+            balls[idx].y = rand() % WINDOW_HEIGHT;
+
+            balls[idx].dx = rand_float(-MAX_SPEED, MAX_SPEED);
+            balls[idx].dy = rand_float(-MAX_SPEED, MAX_SPEED);
             balls[idx].type = t;
         }
     }
@@ -454,7 +365,7 @@ int main() {
     ALLEGRO_DISPLAY *disp = al_create_display(WINDOW_WIDTH, WINDOW_HEIGHT);
     must_init(disp, "Display");
 
-    ALLEGRO_TIMER *timer = al_create_timer(1.0 / 60.0);
+    ALLEGRO_TIMER *timer = al_create_timer(1.0 / FRAME_RATE);
     must_init(timer, "Timer");
 
     ALLEGRO_EVENT_QUEUE *queue = al_create_event_queue();
@@ -465,7 +376,7 @@ int main() {
     al_register_event_source(queue, al_get_keyboard_event_source());
 
     Ball balls[TOTAL_BALLS];
-    init_balls(balls);
+    init_balls(balls, true);
 
     bool running = true;
     bool redraw = true;
@@ -490,7 +401,7 @@ int main() {
               break;
             }
             if (ev.keyboard.keycode == ALLEGRO_KEY_I){
-              init_balls(balls);
+              init_balls(balls, false);
               break;
             }
           /* fallthrough */

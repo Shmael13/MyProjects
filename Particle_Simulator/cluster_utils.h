@@ -5,12 +5,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define NUM_TYPES 6
+#define NUM_TYPES 8
 
 #define MIN_COL_DIST 1
-#define MAX_COL_DIST 100
-#define MIN_FORCE -2
-#define MAX_FORCE 2
+#define MAX_COL_DIST 25
+#define MIN_FORCE -1
+#define MAX_FORCE 1
 
 typedef struct {
     float x, y;
