@@ -1,5 +1,6 @@
 //clusters.c
 #include <time.h>
+#include <string.h> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -12,27 +13,28 @@
 
 #define WINDOW_WIDTH 700
 #define WINDOW_HEIGHT 700
-#define FRAME_RATE 20
+#define FRAME_RATE 30
 
-#define GRID_SIZE 25 //MUST BE BIGGER THAN MAX_COL_DIST(in cluster_utils.h)
+#define GRID_SIZE 50 //MUST BE BIGGER THAN MAX_COL_DIST(in cluster_utils.h)
 #define GRID_COLS (WINDOW_WIDTH / GRID_SIZE)
 #define GRID_ROWS (WINDOW_HEIGHT / GRID_SIZE)
 #define GRID_CELLCOUNT (GRID_COLS * GRID_ROWS)
 
 #define BALL_RADIUS 1.5
-#define BALLS_PER_TYPE 300
+#define BALLS_PER_TYPE 100
 #define TOTAL_BALLS (NUM_TYPES * BALLS_PER_TYPE)
 
 #define REPULSION 5.0f
 
 //Higher number is less friction, FRICTION of 1 is equivalent to no friction 
 #define FRICTION 0.8f
-#define MAX_SPEED 40.0f
+#define GRAVITY 0.05f
+#define MAX_SPEED 60.0f
 
 #define RAND_FORCES true
 #define RAND_DIST false
 
-#define THREAD_THRESHOLD (BALLS_PER_TYPE / 2) //If this many particles are present within a single cell, it spawns a new thread to speedup calculation
+#define THREAD_THRESHOLD (BALLS_PER_TYPE) //If this many particles are present within a single cell, it spawns a new thread to speedup calculation
 
 enum {
     TYPE_BLUE = 0,
@@ -44,6 +46,158 @@ enum {
     TYPE_ORANGE,
     TYPE_PINK
 };
+
+int color_types[NUM_TYPES][NUM_TYPES] = {
+///*0*/ {0,1,2,3,0,0,0,0}, // 0: spreads within A; converts B4-7 → 4
+///*1*/ {0,1,2,3,1,1,1,1}, // 1: similar but moves toward 2 in A; converts B→5
+///*2*/ {0,1,2,3,2,2,2,2}, // 2: moves toward 3; converts B→6
+///*3*/ {0,1,2,3,3,3,3,3}, // 3: loops back to 0; converts B→7
+///*4*/ {4,4,4,4,4,5,6,7}, // 4: B-faction spreads & converts A→0
+///*5*/ {5,5,5,5,4,5,6,7}, // 5: B→5, converts A→1
+///*6*/ {6,6,6,6,4,5,6,7}, // 6: B→6, converts A→2
+///*7*/ {7,7,7,7,4,5,6,7}, // 7: B→7, converts A→3
+
+  
+  {1, 0, 0, 0, 0, 0, 0, 0},
+  {0, 1, 0, 0, 0, 0, 0, 0},
+  {0, 0, 1, 0, 0, 0, 0, 0},
+  {0, 0, 0, 1, 0, 0, 0, 0},
+  {0, 0, 0, 0, 1, 0, 0, 0},
+  {0, 0, 0, 0, 0, 1, 0, 0},
+  {0, 0, 0, 0, 0, 0, 1, 0},
+  {0, 0, 0, 0, 0, 0, 0, 1},
+};
+float CLOSEST_NEIGHBORS_DIST = 10.0f;
+int neighbors = 3;
+
+
+typedef struct {
+    float dist_sq;
+    int type;
+} Neighbor;
+
+void update_ball_types(Ball balls[], int n_neighbors) {
+    const float max_dist_sq = MIN_COL_DIST * MIN_COL_DIST + CLOSEST_NEIGHBORS_DIST;
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < TOTAL_BALLS; i++) {
+        Ball* b = &balls[i];
+
+        // Temporary buffer to store potential neighbors
+        Neighbor potential_neighbors[TOTAL_BALLS];
+        int potential_count = 0;
+
+        for (int j = 0; j < TOTAL_BALLS; j++) {
+            if (i == j) continue; // skip self
+            Ball* other = &balls[j];
+
+            float dx = other->x - b->x;
+            float dy = other->y - b->y;
+
+            // Wraparound
+            if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
+            else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+            if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
+            else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+
+            float dist_sq = dx * dx + dy * dy;
+
+            if (dist_sq <= max_dist_sq) {
+                potential_neighbors[potential_count].dist_sq = dist_sq;
+                potential_neighbors[potential_count].type = other->type;
+                potential_count++;
+            }
+        }
+
+        if (potential_count == 0) continue;
+
+        // Sort potential neighbors by distance (simple insertion sort since n_neighbors is small)
+        for (int m = 1; m < potential_count; m++) {
+            Neighbor key = potential_neighbors[m];
+            int n = m - 1;
+            while (n >= 0 && potential_neighbors[n].dist_sq > key.dist_sq) {
+                potential_neighbors[n + 1] = potential_neighbors[n];
+                n--;
+            }
+            potential_neighbors[n + 1] = key;
+        }
+
+        // Tally the closest n_neighbors
+        int near_colors[NUM_TYPES] = {0};
+        int actual_neighbors = potential_count < n_neighbors ? potential_count : n_neighbors;
+        for (int k = 0; k < actual_neighbors; k++) {
+            near_colors[potential_neighbors[k].type]++;
+        }
+
+        // Find the dominant color among closest neighbors
+        int maximal_type = 0, max_count = -1;
+        for (int k = 0; k < NUM_TYPES; k++) {
+            if (near_colors[k] > max_count) {
+                max_count = near_colors[k];
+                maximal_type = k;
+            }
+        }
+
+        b->type = color_types[b->type][maximal_type];
+    }
+}
+
+
+// void update_ball_types(Ball balls[], int n_neighbors) {
+//     // Parallelize the loop over balls
+// 
+//     #pragma omp parallel for schedule(dynamic)
+//     for (int i = 0; i < TOTAL_BALLS; i++) {
+//         Ball* b = &balls[i];
+// 
+//         int near_colors[NUM_TYPES];
+//         for (int i = 0; i < NUM_TYPES; i++){
+//           near_colors[i] = 0;
+//         }
+//         int neighbors_found = 0;
+//         // Search all other balls for nearest neighbors
+//         for (int j = 0; j < TOTAL_BALLS; j++) {
+//             if (i == j) continue; // skip self
+//             Ball* other = &balls[j];
+// 
+//             // Compute wraparound distance
+//             float dx = other->x - b->x;
+//             float dy = other->y - b->y;
+// 
+//             if (dx > WINDOW_WIDTH / 2) dx -= WINDOW_WIDTH;
+//             else if (dx < -WINDOW_WIDTH / 2) dx += WINDOW_WIDTH;
+//             if (dy > WINDOW_HEIGHT / 2) dy -= WINDOW_HEIGHT;
+//             else if (dy < -WINDOW_HEIGHT / 2) dy += WINDOW_HEIGHT;
+// 
+//             float dist_sq = dx * dx + dy * dy;
+//             
+//             if (dist_sq < MIN_COL_DIST * MIN_COL_DIST + CLOSEST_NEIGHBORS_DIST){
+//               near_colors[other->type]++; 
+//               neighbors_found++;
+//               if (neighbors_found >= n_neighbors){
+//                 break;
+//               }
+//             }
+//         }
+//         if (neighbors_found == 0){
+//           continue;
+//         }
+// 
+//         int maximal_type;
+//         int max_cols = -1;
+//         for (int k = 0; k < NUM_TYPES; k++){
+//           int num_colors = near_colors[k];
+//           if (max_cols < num_colors){
+//             max_cols = num_colors;
+//             maximal_type = k;
+//           }
+//         }
+//         
+//         b->type = color_types[b->type][maximal_type];
+//         
+//     }
+// }
+
 
 Ball* grid_buffer[TOTAL_BALLS];
 
@@ -149,10 +303,9 @@ void apply_ball_forces(Ball* effected, Ball* applier){
   if (dist_sq > max_dist * max_dist){return;}
   
   float dist = sqrtf(dist_sq);
-  if (isnan(dist) || dist <=0.0) return;
 
-  if (dist < 2 * BALL_RADIUS) {
-    float overlap = (2 * BALL_RADIUS - dist) / 2.0f;
+  if (dist < 2 * MIN_COL_DIST) {
+    float overlap = (2 * MIN_COL_DIST - dist) / 2.0f;
 
     // Normalize direction vector
     float push_dx = dx * (overlap / dist);
@@ -169,7 +322,7 @@ void apply_ball_forces(Ball* effected, Ball* applier){
 
     if (effected->y < 0) effected->y += WINDOW_HEIGHT;
     else if (effected->y >= WINDOW_HEIGHT) effected->y -= WINDOW_HEIGHT;
-}
+  }
 
   float force = compute_force(effected->type, applier->type, dist);
   float inv_dist = 1 / dist;
@@ -178,12 +331,15 @@ void apply_ball_forces(Ball* effected, Ball* applier){
 
   effected->dx += dx * force;
   effected->dy += dy * force;
+  return;
 }
 
 void apply_ball_resistances(Ball* this){
   // Apply friction and clamp velocity
   this->dx *= FRICTION;
   this->dy *= FRICTION;
+
+  this->y += GRAVITY;
   
   const float speed_sq = this->dx * this->dx + this->dy * this->dy;
   if (speed_sq > MAX_SPEED * MAX_SPEED) {
@@ -217,7 +373,6 @@ void apply_cell_forces(int cellnum){
     int applier_idx = interacting_cells[i];
     CellIndex appl_ci = cell_Indicies[applier_idx];
     if (effected_ci.count > THREAD_THRESHOLD){
-      //apply_parallel_cell_forces(&effected_ci, &appl_ci);
       #pragma omp parallel for schedule(dynamic)
       for (int k = 0; k < effected_ci.count; k++){
         Ball* effected = grid_buffer[effected_ci.start + k];
@@ -387,11 +542,20 @@ int main() {
         al_wait_for_event(queue, &ev);
         switch (ev.type){
           case ALLEGRO_EVENT_TIMER:
-            clock_t start = clock();
+            clock_t f_start = clock();
             apply_forces_parallel(balls);
-            clock_t end = clock();
-            printf("Frame took: %.2fms\n", (1000.0 * (end - start)) / CLOCKS_PER_SEC);
+            clock_t update_types_start = clock();
+            update_ball_types(balls, neighbors);
+            clock_t update_positions_start = clock();
             update_positions(balls);
+            clock_t end = clock();
+
+            float frame_time = (1000.0 * (end - f_start)) / CLOCKS_PER_SEC;
+            float force_time = (1000.0 * (update_types_start - f_start)) / CLOCKS_PER_SEC;
+            float update_types_time = (1000.0 * (update_positions_start - update_types_start)) / CLOCKS_PER_SEC;
+            float update_pos_time = (1000.0 * (end - update_positions_start)) / CLOCKS_PER_SEC;
+            
+            printf("Frame took:%.2fms\tForces took: %.2fms\tTypes took: %.2fms\tPositions took: %.2fms\n", frame_time, force_time, update_types_time, update_pos_time);
             redraw = true;
             break;
           case ALLEGRO_EVENT_KEY_DOWN:
