@@ -1,15 +1,21 @@
 #Compilers
 CXX = g++
-CXXFLAGS = -Wall -Werror -Wextra -Wconversion -Wsign-conversion -Weffc++ -std=c++20
+CXXFLAGS = -Wall -Werror -Wextra -Wconversion -Wsign-conversion -Weffc++ -std=c++23 
+
+EXEC_FLAGS = -O3 
+
+# Python flags
+PYTHON_LDFLAGS = $(shell pkg-config --libs python3-embed 2>/dev/null || pkg-config --libs python3) -lpython3.10
+PY_CFLAGS = $(shell pkg-config --cflags python3)
 
 #Target Executable
 TARGET = main
 
 #Source Files
-SRCS = main.cpp stock.cpp utils/industry.cpp exchange.cpp
+SRCS = $(wildcard *.cpp utils/*.cpp)
 
 #Header files
-HEADER = stock.h utils/industry.h exchange.h
+HEADER = $(wildcard *.h utils/*.h)
 
 #Object files
 OBJS = $(SRCS:.cpp=.o)
@@ -19,10 +25,10 @@ all:$(TARGET)
 
 #Link obj files to executable
 $(TARGET):$(OBJS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(EXEC_FLAGS) $^ -o $@ $(PYTHON_LDFLAGS)
 
 %.o: %.cpp $(HEADER) 
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(PY_CFLAGS) $(EXEC_FLAGS) -c $< -o $@ 
 
 clean:
 	rm -f $(OBJS) $(TARGET)

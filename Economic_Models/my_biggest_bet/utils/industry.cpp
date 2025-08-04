@@ -1,14 +1,14 @@
 #include "industry.h"
 #include "../stock.h"
 
-Industry::Industry(const std::string& industry_name, double avg_growth)
+Industry::Industry(const std::string_view industry_name, double avg_growth)
     :industry_name(industry_name), avg_growth(avg_growth), stocks(){}
     
 void Industry::addStock(Stock* stock){
     stocks.push_back(stock);
 }
 
-std::string Industry::getName() const{
+std::string_view Industry::getName() const{
     return industry_name;
 }
 

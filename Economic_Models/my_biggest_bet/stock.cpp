@@ -3,15 +3,15 @@
 #include "exchange.h"
 #include "utils/industry.h"
 
-Stock::Stock(std::string ticker, std::shared_ptr<Industry> industryPtr, double curr_price, long int num_stocks)
-    :ticker(ticker), industry(industryPtr), curr_price(curr_price), vol_traded(0), num_stocks(num_stocks){
-    industry->addStock(this);
+Stock::Stock(std::string_view ticker, std::shared_ptr<Industry> industryPtr, 
+             double curr_price, long int num_stocks, Exchange& exchange)
+     :ticker(ticker), industry(industryPtr), curr_price(curr_price), 
+     vol_traded(0), num_stocks(num_stocks), exchange_start_time(exchange.getExchangeStartTime()){
+    industry->addStock(this);    
 }
 
-long long Stock::exchange_start_time = Exchange::getExchangeStartTime();
-
 //Getter Methods
-std::string Stock::getIndustryName() const{
+std::string_view Stock::getIndustryName() const{
     return industry->getName();
 }
 
@@ -19,7 +19,7 @@ std::shared_ptr<Industry> Stock::getIndustry() const{
     return industry;
 }
 
-std::string Stock::getTicker() const{
+std::string_view Stock::getTicker() const{
     return ticker;
 }
 
@@ -62,8 +62,7 @@ StockFrame Stock::toStockFrame(void) const{
     curr_price,
     vol_traded,
     num_stocks,
-    getCurrTime()
+    getCurrTime() - exchange_start_time
   };
 }
-
 

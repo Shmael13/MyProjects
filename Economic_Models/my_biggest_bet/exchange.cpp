@@ -1,15 +1,25 @@
 #include "exchange.h"
+#include <memory>         // for std::unique_ptr, std::make_unique
+#include <string>         // for std::string
+#include <utility>        // for std::move
+#include <queue>
+#include <vector>
 #include <chrono>
-//TODO: Account for overflow in times
+#include "stock.h"
 
+//TODO: Account for overflow in times
 Exchange::Exchange(void) : 
   market_data{},
+  live_stocks{},
+  pending_trades{},
+  market_start_time(Exchange::getCurrentTime()),
   time_since_market_start(Exchange::getCurrentTime())
-{}
+{
+  
 
-long long Exchange::market_start_time = Exchange::initMarketStartTime();
+}
 
-long long Exchange::getCurrentTime(void){
+long long Exchange::getCurrentTime(void) const{
     return std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::system_clock::now().time_since_epoch()
     ).count();
@@ -19,12 +29,12 @@ long long Exchange::initMarketStartTime() {
     return getCurrentTime();
 }
 
-std::unordered_map<std::string, std::unique_ptr<StockFrameLL>> Exchange::getMarketData(void) const{
+const std::unordered_map<std::string, std::list<StockFrame>>& Exchange::getMarketData(void) const{
   return market_data;
 }
 
 
-long long Exchange::getExchangeStartTime(void){
+long long Exchange::getExchangeStartTime(void) const{
   return market_start_time; 
 }
 
@@ -32,12 +42,202 @@ long long Exchange::getTimeSinceExchangeStart(void) const{
   return Exchange::getCurrentTime() - market_start_time;
 }
 
-void Exchange::updateMarketData(std::string ticker, StockFrame sf){
+std::vector<std::string> Exchange::getLiveStocks() const{
+  std::vector<std::string> tickers = getKeys(live_stocks);
+  return tickers;
+}
+double Exchange::getStockPrice(std::string ticker) const{
+  // Defaults to -1 if the stock is not live
+  auto it = live_stocks.find(ticker);
+    if (it != live_stocks.end() && it->second != nullptr) {
+        return it->second->getCurrPrice();
+    }
+    return -1.0; // stock not found
+
+}
+
+void Exchange::updateMarketData(StockFrame sf){
   //Market Data contains that stock
+  //Consider changing this to string_view for speedup
+  std::string ticker = static_cast<std::string>(sf.ticker);
+
   if (!market_data.contains(ticker)){
-    market_data[ticker] = insert_node(sf, nullptr);
+    // Make new StockFrameLL
+    //std::list<StockFrame> stockList;
+    //stockList.push_back(sf);
+    market_data[ticker].push_back(sf);
   }
-  else{
-    market_data[ticker] = insert_node(sf, std::move(market_data[ticker]));
+  // Add this to the market_data
+  std::list<StockFrame> stockList = market_data[ticker];
+  stockList.push_back(sf);
+
+  market_data[ticker] = stockList;
+  
+}
+
+int Exchange::addStock(Stock* stock) {
+    std::string ticker_str = static_cast<std::string>(stock->getTicker());
+
+    live_stocks[ticker_str] = stock;
+
+    // Initialize market_data with first StockFrame
+    std::list<StockFrame> stockList;
+    stockList.push_back(stock->toStockFrame());
+    market_data[ticker_str] = stockList;
+
+    return 0;
+}
+
+void Exchange::printMarketData(void) const{
+  for (const auto& [ticker, sfll]: market_data){
+    std::cout << "Ticker: " << ticker << "\n"<< "Stock Frame List: "<<sfll; 
   }
+}
+
+void Exchange::printLatestMarketDataframe (void) const{
+  for (const auto& [ticker, sfll]: market_data){
+    std::cout << sfll.back();    
+  }
+}
+
+MarketDataframe Exchange::getMarketSnapshot() const {
+    return MarketDataframe{ market_data };
+}
+
+void Exchange::collectTrade(Trader_X_Msg& txm) {
+    auto& trader = txm.trader;
+    auto& msg = txm.msg;
+    
+    // You cannot sell a stock that you don't own
+    if (msg.trade_type == Trades::MARKET_SELL || msg.trade_type == Trades::LIMIT_SELL){
+      if (trader->getStockQuantity(msg.ticker) < msg.quantity){
+        return;
+      }
+    }
+    pending_trades.push_back(txm);
+}
+
+void Exchange::matchOrders() {
+  struct OrderCompare{
+    bool operator()(const Trader_X_Msg& txm1, const Trader_X_Msg& txm2) const{
+      const Trades::Trade_Message& t1 = txm1.msg;
+      const Trades::Trade_Message& t2 = txm2.msg;
+
+      if (t1.trade_type == Trades::MARKET_BUY || t1.trade_type == Trades::LIMIT_BUY){
+        return t1.price < t2.price; // max-heap for buys 
+      }
+      else {
+        return t1.price > t2.price; // min-heap for sells
+      }
+    }
+  };
+
+  using TradeQueue = std::priority_queue<Trader_X_Msg, std::vector<Trader_X_Msg>, OrderCompare>;
+
+  // Separate buy and sell queues for each stock ticker
+  std::unordered_map<std::string, TradeQueue> buy_book; 
+  std::unordered_map<std::string, TradeQueue> sell_book;
+
+  for (const auto& tr_x_msg: pending_trades){
+    const auto& trade = tr_x_msg.msg;
+    if (!live_stocks.contains(trade.ticker)) continue;
+
+    auto& order_type = trade.trade_type;
+    if (order_type == Trades::MARKET_BUY || order_type == Trades::LIMIT_BUY){
+      buy_book[trade.ticker].push(tr_x_msg);
+    }
+    else {
+      sell_book[trade.ticker].push(tr_x_msg);
+    }
+  }
+
+    //Match orders with each ticker
+  for (auto& [ticker, _]: buy_book){
+    auto& buy_heap = buy_book[ticker];
+    auto& sell_heap = sell_book[ticker];
+    Stock* stock = live_stocks[ticker];
+    double acc_stock_price = 0;
+    int acc_stock_volume = 0;
+
+    while (!buy_heap.empty() && !sell_heap.empty()){
+      auto buy_order = buy_heap.top();
+      auto sell_order = sell_heap.top();
+      auto& buy_order_msg = buy_order.msg;
+      auto& sell_order_msg = sell_order.msg;
+
+      bool buy_is_market = buy_order_msg.trade_type == Trades::MARKET_BUY;
+      bool sell_is_market = sell_order_msg.trade_type == Trades::MARKET_SELL;
+      
+      //If it is a limit order, and prices don't mactch, break
+      if (!buy_is_market && !sell_is_market && buy_order_msg.price < sell_order_msg.price) {
+        break;
+      }
+      
+      //TODO can improve this to have more volume traded
+      int order_volume = std::min(buy_order_msg.quantity, sell_order_msg.quantity);
+
+      double order_price;
+      // If both are market orders, trade based on currStockprice from previous iteration.
+      // This translates to an institution buying you out  
+      // Otherwise, trade with someone that placed a limit order
+      if (buy_is_market && sell_is_market) {
+          order_price = stock->getCurrPrice();  // fallback midpoint
+       } else if (buy_is_market || sell_order_msg.trade_type == Trades::LIMIT_SELL) {
+          order_price = sell_order_msg.price;
+       } else {
+          order_price = buy_order_msg.price;
+       }
+        
+       // If the buyer cannot afford the order, the order is removed from the heap
+       if (buy_order.trader->getCashBalance() < order_price){
+        buy_heap.pop();
+        continue;
+       }
+        
+      // Execute Order
+       buy_heap.pop();
+       sell_heap.pop();
+
+       buy_order_msg.quantity -= order_volume;
+       sell_order_msg.quantity -= order_volume;
+
+       if (buy_order_msg.quantity > 0) buy_heap.push(buy_order);
+       if (sell_order_msg.quantity > 0) sell_heap.push(sell_order);
+        
+       //Update Traders
+       // Seller gains cash, loses stock. Opposite for buyer
+       sell_order.trader->updateCashBalance(order_price);
+       buy_order.trader->updateCashBalance(-order_price);
+       sell_order.trader->updateStockHoldings(ticker, -order_volume);
+       buy_order.trader->updateStockHoldings(ticker, order_volume);
+       
+       acc_stock_price += order_price * order_volume;
+       acc_stock_volume += order_volume;
+    }
+    if (acc_stock_volume > 0) {
+      stock->setCurrPrice(acc_stock_price / acc_stock_volume);
+    }
+    stock->setVolTraded(stock->getVolTraded() + acc_stock_volume);
+  }
+  pending_trades.clear();
+}
+
+void Exchange::simulateTick(const std::vector<Trader*>& traders) {
+    MarketDataframe snapshot = getMarketSnapshot();
+
+    for (Trader* trader : traders) {
+        Trades::Trade_Message msg = trader->submitTrade(snapshot);
+        Trader_X_Msg tr_x_msg = {trader, msg};
+        trader->incrementTicksHeld();
+        collectTrade(tr_x_msg);
+    }
+
+    matchOrders();  // apply price/volume changes
+
+    // Update market_data with new snapshots
+    for (auto& [ticker, stock] : live_stocks) {
+        updateMarketData(stock->toStockFrame());
+    }
+
+    ++time_since_market_start;
 }
