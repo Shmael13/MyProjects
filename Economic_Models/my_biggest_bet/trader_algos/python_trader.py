@@ -1,3 +1,7 @@
+import sys
+import numpy as np
+import pandas as pd
+
 def make_trade_decision(market_data):
     """
     Analyzes market data and returns a trade message.
@@ -6,11 +10,11 @@ def make_trade_decision(market_data):
     """
     # This is a placeholder for your trading logic.
     # We'll just return a simple, static trade for demonstration.
-
     trade_message = {
-        "ticker": "AAPL",
-        "trade_type": 1,  # 1 for 'BUY' in your C++ enum
-        "price": 185.50,
-        "quantity": 10
+        "ticker": "Apple",
+        "trade_type": 1,  
+        "price": 50.0,
+        "quantity": 2
     }
+
     return trade_message

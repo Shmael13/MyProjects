@@ -32,7 +32,7 @@ int main(){
     exchange.addStock(stock);
   }
   
-
+  Trade_Algos::initialize_python();
   // Create traders
   std::vector<Trader*> traders = {
       new Trader("random_trader", Trade_Algos::random_trader, 100),
@@ -51,8 +51,8 @@ int main(){
       new Trader("random_trader", Trade_Algos::random_trader, 100),
       new Trader("random_trader", Trade_Algos::random_trader, 100),
       new Trader("random_trader", Trade_Algos::random_trader, 100),
-      new Trader("random_trader", Trade_Algos::random_trader, 100),
-      new Trader("random_trader", Trade_Algos::random_trader, 100),
+      new Trader("limit_buy_trader", Trade_Algos::limit_buy_trader, 100),
+      new Trader("market buy trader", Trade_Algos::market_buy_trader , 100),
       new Trader("smart trader", Trade_Algos::smart_trader, 100),
       new Trader("smart trader", Trade_Algos::smart_trader, 100),
       new Trader("Python trader", Trade_Algos::py_trader, 100),
@@ -61,10 +61,15 @@ int main(){
   // Distribute the stocks we created amongst the traders
   for (Stock* stock: stock_vector){
     int num_traded = static_cast<int>(stock->getNumStocks());
-    int num_tickers = static_cast<int>(stock_vector.size());
-    
-    int num_distributed = num_traded / num_tickers;
-    [[maybe_unused]] int remaining = num_traded % num_tickers; // remainder when we distribute to everything
+    [[maybe_unused]] int num_tickers = static_cast<int>(stock_vector.size());
+    int num_traders = static_cast<int>(traders.size());
+    int num_distributed = num_traded / num_traders;
+    [[maybe_unused]] int remaining = num_traded % num_traders; // remainder when we distribute to everything
+
+    std::cout << "NUMBER TRADED::" << num_traded << "\n";
+    std::cout << "NUM_TRADERS::" << num_traders << "\n";
+    std::cout << "NUMBER DISTRIBUTED::::"<< num_distributed << "\n";
+    std::cout << "NUM_REMAINING::" << remaining << "\n";
     
     std::string ticker = static_cast<std::string>(stock->getTicker());
 
@@ -75,10 +80,13 @@ int main(){
   }
 
   // Main simulation loop    
-  for (int tick = 0; tick < 500; ++tick) {
+  for (int tick = 0; tick < 10; ++tick) {
       exchange.simulateTick(traders);
       //std::this_thread::sleep_for(std::chrono::microseconds(1));
   }
+  Trade_Algos::cleanup_python();
+
+
   exchange.printMarketData();
   std::cout << traders[0]->getTicksHeld() << "\n";
   
@@ -95,9 +103,4 @@ int main(){
   }    
   exchange.printLatestMarketDataframe();
   std::cout << appl_stock;
-
-  
-
-  
-
 }

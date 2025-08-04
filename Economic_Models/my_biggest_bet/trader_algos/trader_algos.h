@@ -1,22 +1,44 @@
 #include "py_binder.h"
 
 namespace Trade_Algos {
-  auto py_trader = [](const MarketDataframe& market) -> Trades::Trade_Message{
-    Py_Initialize();
+// Static flag to track Python initialization
+    static bool python_initialized = false;
     
-// Add current directory to Python path and check if file exists
-    PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.insert(0, '.')");
-
-    Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
-        "trader_algos.python_trader", 
-        "make_trade_decision", 
-        market
-    );
-    if (!Py_FinalizeEx()) {
+    // Initialize Python once when program starts
+    void initialize_python() {
+        if (!python_initialized) {
+            Py_Initialize();
+            PyRun_SimpleString("import sys");
+            PyRun_SimpleString("sys.path.insert(0, './trader_algos')");
+            python_initialized = true;
+            std::cout << "Python initialized successfully" << std::endl;
+        }
     }
-    return trade;
-  };
+    
+    // Clean up Python when program ends
+    void cleanup_python() {
+        if (python_initialized) {
+            if (!Py_FinalizeEx()) {
+                std::cout << "Successfully finalized Python." << std::endl;
+            }
+            python_initialized = false;
+        }
+    }
+    
+    auto py_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
+        // Only initialize once
+        initialize_python();
+        
+        // Don't finalize here - let cleanup_python() handle it
+        Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
+            "python_trader",
+            "make_trade_decision", 
+            market
+        );
+        std::cout << trade;
+        
+        return trade;
+    };
   
   auto random_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
       const auto& stock_list = market.sf_ll.begin()->second;
@@ -74,7 +96,24 @@ namespace Trade_Algos {
           std::string(latest_frame.ticker),
           Trades::MARKET_BUY,
           0,
-          100
+          10
+      };
+  };
+
+  auto limit_buy_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
+      // Picks first stock randomly and always buys 10 shares at current price
+      if (market.sf_ll.empty()) {
+          return {"", static_cast<Trades::TradeType>(0), 0.0, 0};  // no-op
+      }
+
+      const auto& stock_list = market.sf_ll.begin()->second;
+      const auto& latest_frame = stock_list.back();
+
+      return {
+          std::string(latest_frame.ticker),
+          Trades::LIMIT_BUY,
+          40,
+          1
       };
   };
 

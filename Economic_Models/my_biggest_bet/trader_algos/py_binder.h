@@ -102,6 +102,8 @@ namespace PyBinder {
               PyDict_SetItemString(pStockFrameDict, "ticker", PyUnicode_FromString(std::string(sf.ticker).c_str()));
               PyDict_SetItemString(pStockFrameDict, "curr_price", PyFloat_FromDouble(sf.curr_price));
               PyDict_SetItemString(pStockFrameDict, "vol_traded", PyLong_FromLong(sf.vol_traded));
+              PyDict_SetItemString(pStockFrameDict, "num_stocks", PyLong_FromLong(sf.num_stocks));
+              PyDict_SetItemString(pStockFrameDict, "recording_time", PyLong_FromLong(sf.recording_time));
               
               PyList_SetItem(pStockList, i, pStockFrameDict);
               i++;
