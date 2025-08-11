@@ -55,6 +55,16 @@ long long Stock::getCurrTime() const{
     ).count(); 
 }
 
+void Stock::pushOrder(Trader_X_Msg txm){
+  auto trade_type = txm.msg.trade_type;
+  if (trade_type == Trades::MARKET_BUY || trade_type == Trades::LIMIT_BUY){
+    buy_book.push(txm);
+  }
+  else{
+    sell_book.push(txm);
+  }
+}
+
 StockFrame Stock::toStockFrame(void) const{
    return StockFrame{
     ticker,

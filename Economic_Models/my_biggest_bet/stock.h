@@ -1,12 +1,27 @@
 #pragma once
 #include <string>
 #include <memory>
+#include <queue>
 #include "utils/stock_frame.h"
 #include "exchange.h"
 
 class Industry;
 
 class Stock{
+    struct OrderCompare{
+    bool operator()(const Trader_X_Msg& txm1, const Trader_X_Msg& txm2) const{
+      const Trades::Trade_Message& t1 = txm1.msg;
+      const Trades::Trade_Message& t2 = txm2.msg;
+
+      if (t1.trade_type == Trades::MARKET_BUY || t1.trade_type == Trades::LIMIT_BUY){
+        return t1.price < t2.price; // max-heap for buys 
+      }
+      else {
+        return t1.price > t2.price; // min-heap for sells
+      }
+    }
+  };
+
   private:
     std::string_view ticker;
     std::shared_ptr<Industry> industry;
@@ -15,6 +30,9 @@ class Stock{
     long int num_stocks;
     long long getCurrTime() const;
     long long exchange_start_time;
+    std::priority_queue<Trader_X_Msg, std::vector<Trader_X_Msg>, OrderCompare> buy_book;
+    std::priority_queue<Trader_X_Msg, std::vector<Trader_X_Msg>, OrderCompare> sell_book;
+
 
   public:
   //Init
@@ -36,6 +54,17 @@ class Stock{
 
   //Snapshot Getter Method
   StockFrame toStockFrame(void) const;
+
+  auto& getSellBook(){
+    return sell_book;
+  }
+  
+  void pushOrder(Trader_X_Msg txm);
+
+  auto& getBuyBook(){
+    return buy_book;
+  }
+
 };
 
 

@@ -1,144 +1,69 @@
-#include <Python.h>
+// utils/PyBinder.h
+#pragma once
+
+#include <pybind11/embed.h>
+#include <functional>
+#include <string>
 #include "../utils/trade_message.h"
 #include "../utils/market_dataframe.h"
 
+namespace py = pybind11;
 
+class PyBinder {
+public:
+    // Call this once at the start of main()
+    static void initialize_python() {
+        py::initialize_interpreter();
+        // Add the current path to the Python module search path
+        // This allows Python to find our 'strategies.py' script.
+        py::exec(R"(
+            import sys
+            sys.path.append('.')
+        )");
 
-namespace PyBinder {
-  // Forward declarations
-  Trades::Trade_Message getTradeMessageFromPython(
-        const std::string& module_name,
-        const std::string& function_name,
-        const MarketDataframe& market_data
-        );
-  PyObject* convertToPythonMarketData(const MarketDataframe& market_data);
-  Trades::Trade_Message parsePythonTradeMessage(PyObject* pValue);
-  
-  Trades::Trade_Message getTradeMessageFromPython(
-        const std::string& module_name,
-        const std::string& function_name,
-        const MarketDataframe& market_data
-        ) {
-        PyObject* pName = PyUnicode_DecodeFSDefault(module_name.c_str());
-        if (!pName) {
-            PyErr_Print();
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        PyObject* pModule = PyImport_Import(pName);
-        Py_DECREF(pName);
-
-        if (!pModule) {
-            PyErr_Print();
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        PyObject* pFunc = PyObject_GetAttrString(pModule, function_name.c_str());
-        if (!pFunc || !PyCallable_Check(pFunc)) {
-            if (PyErr_Occurred()) PyErr_Print();
-            Py_XDECREF(pFunc);
-            Py_DECREF(pModule);
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        PyObject* pArgs = PyTuple_New(1);
-        if (!pArgs) {
-            Py_XDECREF(pFunc);
-            Py_DECREF(pModule);
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        PyObject* pMarketDict = convertToPythonMarketData(market_data);
-        if (!pMarketDict) {
-            Py_XDECREF(pFunc);
-            Py_DECREF(pModule);
-            Py_DECREF(pArgs);
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        PyTuple_SetItem(pArgs, 0, pMarketDict);
-
-        PyObject* pValue = PyObject_CallObject(pFunc, pArgs);
-        
-        Py_DECREF(pArgs);
-        Py_DECREF(pFunc);
-        Py_DECREF(pModule);
-
-        if (pValue == nullptr) {
-            PyErr_Print();
-            return {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-        }
-
-        Trades::Trade_Message trade_message = parsePythonTradeMessage(pValue);
-        Py_DECREF(pValue);
-
-        return trade_message;
+        py::exec(R"(
+        import sys
+        import os
+        print("Python Path:", sys.path)
+        print("Current Working Directory:", os.getcwd())
+        sys.path.append('.')
+        )");
     }
 
-  // Helper function to convert MarketDataframe to a nested Python dictionary.
-  // This function creates a Python object graph from C++ data.
-  PyObject* convertToPythonMarketData(const MarketDataframe& market_data) {
-      PyObject* pMarketDict = PyDict_New();
-      if (!pMarketDict) return nullptr;
+    // Call this once at the end of main()
+    static void cleanup_python() {
+        py::finalize_interpreter();
+    }
+    
+    // This is the key function. It loads a Python function and wraps it
+    // in a C++ std::function that the Trader class can use.
+    static std::function<Trades::Trade_Message(const MarketDataframe&)>
+    get_py_trade_func(const std::string& module_name, const std::string& func_name) {
+        
+        // Return a C++ lambda function that captures the Python function
+        return [module_name, func_name](const MarketDataframe& market_data) -> Trades::Trade_Message {
+            try {
+                // Import the python module (e.g., "strategies")
+                py::module_ module = py::module_::import(module_name.c_str());
 
-      for (const auto& pair : market_data.sf_ll) {
-          // TODO check that this conversion is ok
-          // Explicitly cast the unsigned size() to a signed Py_ssize_t
-          PyObject* pStockList = PyList_New(static_cast<Py_ssize_t>(pair.second.size()));
-          if (!pStockList) {
-              Py_XDECREF(pMarketDict);
-              return nullptr;
-          }
+                // Get the function from the module (e.g., "moving_avg_trader")
+                py::object py_func = module.attr(func_name.c_str());
 
-          int i = 0;
-          for (const auto& sf : pair.second) {
-              PyObject* pStockFrameDict = PyDict_New();
-              if (!pStockFrameDict) {
-                  Py_XDECREF(pStockList);
-                  Py_XDECREF(pMarketDict);
-                  return nullptr;
-              }
+                // Call the Python function, passing the C++ market_data object.
+                // pybind11 handles the conversion to a Python object automatically.
+                py::object result = py_func(market_data);
 
-              PyDict_SetItemString(pStockFrameDict, "ticker", PyUnicode_FromString(std::string(sf.ticker).c_str()));
-              PyDict_SetItemString(pStockFrameDict, "curr_price", PyFloat_FromDouble(sf.curr_price));
-              PyDict_SetItemString(pStockFrameDict, "vol_traded", PyLong_FromLong(sf.vol_traded));
-              PyDict_SetItemString(pStockFrameDict, "num_stocks", PyLong_FromLong(sf.num_stocks));
-              PyDict_SetItemString(pStockFrameDict, "recording_time", PyLong_FromLong(sf.recording_time));
-              
-              PyList_SetItem(pStockList, i, pStockFrameDict);
-              i++;
-          }
-          PyDict_SetItemString(pMarketDict, pair.first.c_str(), pStockList);
-      }
-      return pMarketDict;
-  }
+                // Convert the Python object result back to a C++ Trade_Message.
+                // pybind11 handles this automatically as well.
+                return result.cast<Trades::Trade_Message>();
 
-  // Helper function to parse the returned Python dictionary into a TradeMessage struct.
-  // This function extracts data from a Python object into our C++ struct.
-  Trades::Trade_Message parsePythonTradeMessage(PyObject* pValue) {
-      Trades::Trade_Message trade_message = {"", static_cast<Trades::TradeType>(0), 0.0, 0};
-
-      if (pValue && PyDict_Check(pValue)) {
-          PyObject* pTicker = PyDict_GetItemString(pValue, "ticker");
-          if (pTicker && PyUnicode_Check(pTicker)) {
-              trade_message.ticker = PyUnicode_AsUTF8(pTicker);
-          }
-
-          PyObject* pTradeType = PyDict_GetItemString(pValue, "trade_type");
-          if (pTradeType && PyLong_Check(pTradeType)) {
-              trade_message.trade_type = static_cast<Trades::TradeType>(PyLong_AsLong(pTradeType));
-          }
-
-          PyObject* pPrice = PyDict_GetItemString(pValue, "price");
-          if (pPrice && PyFloat_Check(pPrice)) {
-              trade_message.price = PyFloat_AsDouble(pPrice);
-          }
-
-          PyObject* pQuantity = PyDict_GetItemString(pValue, "quantity");
-          if (pQuantity && PyLong_Check(pQuantity)) {
-              trade_message.quantity = static_cast<int>(PyLong_AsLong(pQuantity));
-          }
-      }
-      return trade_message;
-  }
-}
+            } catch (const py::error_already_set& e) {
+                // If the Python code throws an error, print it to C++ stderr
+                std::cerr << "Python error: " << e.what() << std::endl;
+                // Return a default "do nothing" trade
+                return {"", Trades::MARKET_BUY, 0, 0};
+            }
+        };
+    }
+};
+ 

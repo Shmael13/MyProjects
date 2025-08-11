@@ -2,43 +2,47 @@
 
 namespace Trade_Algos {
 // Static flag to track Python initialization
-    static bool python_initialized = false;
-    
-    // Initialize Python once when program starts
-    void initialize_python() {
-        if (!python_initialized) {
-            Py_Initialize();
-            PyRun_SimpleString("import sys");
-            PyRun_SimpleString("sys.path.insert(0, './trader_algos')");
-            python_initialized = true;
-            std::cout << "Python initialized successfully" << std::endl;
-        }
-    }
-    
-    // Clean up Python when program ends
-    void cleanup_python() {
-        if (python_initialized) {
-            if (!Py_FinalizeEx()) {
-                std::cout << "Successfully finalized Python." << std::endl;
-            }
-            python_initialized = false;
-        }
-    }
-    
-    auto py_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
-        // Only initialize once
-        initialize_python();
-        
-        // Don't finalize here - let cleanup_python() handle it
-        Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
-            "python_trader",
-            "make_trade_decision", 
-            market
-        );
-        std::cout << trade;
-        
-        return trade;
-    };
+   // auto og_pytrader = [](const MarketDataframe& market) -> Trades::Trade_Message {
+   //     // Only initialize once
+   //     PyBinder::initialize_python();
+   //     
+   //     // Don't finalize here - let cleanup_python() handle it
+   //     Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
+   //         "python_trader",
+   //         "make_trade_decision", 
+   //         market
+   //     );
+   //     
+   //     return trade;
+   // };
+
+   // auto moving_avg_pytrader = [](const MarketDataframe& market) -> Trades::Trade_Message {
+   //     // Only initialize once
+   //     PyBinder::initialize_python();
+   //     
+   //     // Don't finalize here - let cleanup_python() handle it
+   //     Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
+   //         "moving_avg_trader",
+   //         "make_trade_decision", 
+   //         market
+   //     );
+   //     
+   //     return trade;
+   // };
+
+   // auto neural_net_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
+   //     // Only initialize once
+   //     PyBinder::initialize_python();
+   //     
+   //     // Don't finalize here - let cleanup_python() handle it
+   //     Trades::Trade_Message trade = PyBinder::getTradeMessageFromPython(
+   //         "neural_net_trader",
+   //         "make_trade_decision", 
+   //         market
+   //     );
+   //     
+   //     return trade;
+   // };
   
   auto random_trader = [](const MarketDataframe& market) -> Trades::Trade_Message {
       const auto& stock_list = market.sf_ll.begin()->second;

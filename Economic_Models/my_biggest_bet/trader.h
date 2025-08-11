@@ -56,3 +56,19 @@ public:
     }
 };
 
+class PyTrader : public Trader {
+private:
+  std::string module_name;
+  std::string function_name;
+  
+public: 
+  PyTrader(std::string id,
+             std::function<Trades::Trade_Message(const MarketDataframe&)> func,
+             std::string module_name,
+             std::string function_name,
+             double initial_cash = 1e6)
+        : Trader(std::move(id), std::move(func), initial_cash), // call base class constructor
+          module_name(std::move(module_name)),
+          function_name(std::move(function_name))
+    {}
+};

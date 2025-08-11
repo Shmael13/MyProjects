@@ -25,7 +25,7 @@ struct Trader_X_Msg {
 
 class Exchange{
   private:
-    std::unordered_map<std::string, std::list<StockFrame>> market_data;  //contains all the market data so far - stockframes for each timestep.
+    std::unordered_map<std::string, std::deque<StockFrame>> market_data;  //contains all the market data so far - stockframes for each timestep.
 
     std::unordered_map<std::string, Stock*> live_stocks;
     std::vector<Trader_X_Msg> pending_trades;
@@ -37,7 +37,7 @@ class Exchange{
 
   public:
     Exchange(void);
-    const std::unordered_map<std::string, std::list<StockFrame>>& getMarketData(void) const;
+    const std::unordered_map<std::string, std::deque<StockFrame>>& getMarketData(void) const;
     long long getExchangeStartTime(void) const;
     long long getTimeSinceExchangeStart(void) const;
     void updateMarketData(StockFrame sf);
@@ -48,7 +48,7 @@ class Exchange{
     void printLatestMarketDataframe (void) const;
 
      // Methods for trader interaction
-    MarketDataframe getMarketSnapshot() const;
+    MarketDataframe getMarketSnapshot(int recent_count) const;
     void collectTrade(Trader_X_Msg& msg);
     void matchOrders(); // Simplified version
     void simulateTick(const std::vector<Trader*>& traders);

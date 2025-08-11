@@ -1,24 +1,38 @@
 #Compilers
 CXX = g++
 CXXFLAGS = -Wall -Werror -Wextra -Wconversion -Wsign-conversion -Weffc++ -std=c++23 
-
 EXEC_FLAGS = -O3 
+
+# OS Detection
+ifeq ($(OS),Windows_NT)
+    RM = del /Q /F
+    EXE = .exe
+    SEP = \\
+    NULL_DEV = NUL
+else
+    UNAME_S := $(shell uname -s)
+    RM = rm -f
+    EXE =
+    SEP = /
+    NULL_DEV = /dev/null
+endif
 
 # Python flags
 PYTHON_LDFLAGS = $(shell pkg-config --libs python3-embed 2>/dev/null || pkg-config --libs python3) -lpython3.10
 PY_CFLAGS = $(shell pkg-config --cflags python3)
 
 #Target Executable
-TARGET = main
+TARGET = main$(EXE)
 
 #Source Files
-SRCS = $(wildcard *.cpp utils/*.cpp)
+SRCS = $(wildcard *.cpp utils$(SEP)*.cpp trader_algos$(SEP)*.cpp)
 
 #Header files
-HEADER = $(wildcard *.h utils/*.h)
+HEADER = $(wildcard *.h utils$(SEP)*.h trader_algos$(SEP)*.h)
 
 #Object files
 OBJS = $(SRCS:.cpp=.o)
+
 
 #Defualt Target
 all:$(TARGET)
@@ -31,5 +45,4 @@ $(TARGET):$(OBJS)
 	$(CXX) $(CXXFLAGS) $(PY_CFLAGS) $(EXEC_FLAGS) -c $< -o $@ 
 
 clean:
-	rm -f $(OBJS) $(TARGET)
-	
+	$(RM) $(OBJS) $(TARGET) 2>$(NULL_DEV)

@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <iostream>
-#include <list>
+#include <deque>
 
 struct StockFrame{
   std::string_view ticker;
@@ -22,8 +22,8 @@ constexpr std::ostream& operator<<(std::ostream& out, StockFrame sf){
   return out;
 }
 
-constexpr std::ostream& operator<< (std::ostream& out, const std::list<StockFrame> sfll){
-    out << "\nPrinting Stock Frame Linked List:\n";
+constexpr std::ostream& operator<< (std::ostream& out, const std::deque<StockFrame> sfll){
+    out << "\nPrinting Stock Frame List:\n";
     int i = 1;
     for (const auto& sf: sfll){
       out << "Frame #"<< i << ": " << "\n"
