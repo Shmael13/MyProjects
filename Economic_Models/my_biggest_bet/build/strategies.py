@@ -45,13 +45,9 @@ class LiveNNTrader:
 
     def _train_model(self):
         """Trains the model on the data collected in the `prices` deque."""
-        print("TRAINING MODEL YAHOOOOO!!")
-        print("\n\n\n\n")
         if len(self.prices) < self.INITIAL_TRAINING_POINTS:
             return False
             
-        print(f"Training NN model with {len(self.prices)} data points...")
-
         # Scale the data for training
         scaled_data = self.scaler.fit_transform(np.array(self.prices).reshape(-1, 1))
 
@@ -65,7 +61,6 @@ class LiveNNTrader:
 
         # Train for a small number of epochs to keep it fast
         self.model.fit(X, y, epochs=5, batch_size=32, verbose=0)
-        print("Training complete.")
         return True
 
     def submit_trade(self, market_data: sim.MarketDataframe) -> sim.Trade_Message:
@@ -84,7 +79,6 @@ class LiveNNTrader:
 
         # Retrain periodically on new data
         if self.is_trained and (self.num_iterations >= self.TRAINING_INTERVAL):
-            print(f"Training on {self.num_iterations} iteration\n\n\n\n")
             self._train_model()
             self.num_iterations = 0
             
@@ -108,17 +102,12 @@ class LiveNNTrader:
         price_change_threshold = current_price * percentage_threshold
 
         # Decision logic
-        print(f"Current Price: {current_price:.2f}, Predicted Price: {predicted_price:.2f}")
-        print(f"Price Difference (Pred - Curr): {(predicted_price - current_price):.2f}")
         
         if (predicted_price - current_price) > price_change_threshold:
-            print("BUYING")
             return sim.Trade_Message(ticker, sim.TradeType.MARKET_BUY, current_price, 1)
         elif (current_price - predicted_price) > price_change_threshold:
-            print("SELLING")
             return sim.Trade_Message(ticker, sim.TradeType.MARKET_SELL, current_price, 1)
         else:
-            print("NONE")
             return sim.Trade_Message("", sim.TradeType.MARKET_BUY, 0, 0)
 
 

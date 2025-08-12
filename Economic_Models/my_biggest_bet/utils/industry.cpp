@@ -2,24 +2,16 @@
 #include "../stock.h"
 
 Industry::Industry(const std::string_view industry_name, double avg_growth)
-    :industry_name(industry_name), avg_growth(avg_growth), stocks(){}
-    
-void Industry::addStock(Stock* stock){
-    stocks.push_back(stock);
-}
+    : industry_name(industry_name), avg_growth(avg_growth), stocks() {}
 
-std::string_view Industry::getName() const{
-    return industry_name;
-}
+void Industry::addStock(Stock *stock) { stocks.push_back(stock); }
 
-std::vector<Stock*> Industry::getStocks() const{
-    return stocks;
-}
+std::string_view Industry::getName() const { return industry_name; }
 
-double Industry::getAvgGrowth() const{
-    return avg_growth;
-}
+std::vector<Stock *> Industry::getStocks() const { return stocks; }
 
-void Industry::setAvgGrowth(double avg_growth){
-    this->avg_growth = avg_growth;
+double Industry::getAvgGrowth() const { return avg_growth; }
+
+void Industry::setAvgGrowth(double avg_growth) {
+  this->avg_growth = avg_growth;
 }
