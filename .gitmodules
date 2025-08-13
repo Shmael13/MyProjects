@@ -1,3 +1,0 @@
-[submodule "Economic_Models/my_biggest_bet/external/pybind11"]
-	path = Economic_Models/my_biggest_bet/external/pybind11
-	url = https://github.com/pybind/pybind11.git
