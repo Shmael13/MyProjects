@@ -1,8 +1,8 @@
 #pragma once
-#include "utils/market_dataframe.h"
-#include "utils/trade_message.h"
 #include <functional>
 #include <random>
+#include "market_dataframe.h"
+#include "trade_message.h"
 // TODO trader can currently send only one Trade_Message i.e a trader can only
 // trade one stock per tick right now. Change this later.
 

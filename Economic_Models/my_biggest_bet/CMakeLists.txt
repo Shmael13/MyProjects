@@ -23,8 +23,8 @@ add_subdirectory(external/pybind11)
 add_executable(
     market_sim
     main.cpp
-    stock.cpp
-    exchange.cpp
+    utils/stock.cpp
+    utils/exchange.cpp
     utils/industry.cpp
     # Add other .cpp files here
 )

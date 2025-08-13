@@ -1,5 +1,3 @@
-#include "exchange.h"
-#include "stock.h"
 #include <chrono>
 #include <deque>
 #include <memory> // for std::unique_ptr, std::make_unique
@@ -8,6 +6,8 @@
 #include <string>  // for std::string
 #include <utility> // for std::move
 #include <vector>
+#include "exchange.h"
+#include "stock.h"
 
 // TODO: Account for overflow in times
 Exchange::Exchange(void)

@@ -190,4 +190,3 @@ def random_py_trader(market_data: sim.MarketDataframe) -> sim.Trade_Message:
         # Sell
         return sim.Trade_Message(ticker, sim.TradeType.MARKET_SELL, current_price, 5)
 
-

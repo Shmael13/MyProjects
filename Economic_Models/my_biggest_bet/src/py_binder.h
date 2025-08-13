@@ -25,7 +25,7 @@ void initialize_python() {
 
         print("Python Path:", sys.path)
         print("Current Working Directory:", os.getcwd())
-        sys.path.append('.')
+        sys.path.append('../trader_algos')
         sys.path.append('/usr/lib/python3/dist-packages')
         sys.path.append('/usr/lib/python3.10/dist-packages')
         )");

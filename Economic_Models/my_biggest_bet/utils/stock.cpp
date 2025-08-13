@@ -1,7 +1,7 @@
+#include <chrono>
 #include "stock.h"
 #include "exchange.h"
-#include "utils/industry.h"
-#include <chrono>
+#include "industry.h"
 
 Stock::Stock(std::string_view ticker, std::shared_ptr<Industry> industryPtr,
              double curr_price, long int num_stocks, Exchange &exchange)

@@ -1,9 +1,9 @@
 #pragma once
-#include "exchange.h"
-#include "utils/stock_frame.h"
 #include <memory>
 #include <queue>
 #include <string>
+#include "exchange.h"
+#include "stock_frame.h"
 
 class Industry;
 

@@ -1,13 +1,12 @@
-#include "Random.h"
-#include "exchange.h"
-#include "stock.h"
-#include "trader_algos/trader_algos.h"
-#include "utils/industry.h"
-#include "utils/trade_message.h"
-#include <SFML/Graphics.hpp>
 #include <iostream>
 #include <memory>
 #include <thread>
+#include "utils/industry.h"
+#include "utils/Random.h"
+#include "utils/exchange.h"
+#include "utils/stock.h"
+#include "utils/trade_message.h"
+#include "trader_algos/trader_algos.h"
 
 int main() {
   Exchange exchange;
@@ -235,7 +234,7 @@ int main() {
   }
 
   // Main simulation loop
-  for (int tick = 0; tick < 1000; ++tick) {
+  for (int tick = 0; tick < 10; ++tick) {
     exchange.simulateTick(traders);
     // std::this_thread::sleep_for(std::chrono::microseconds(1));
   }

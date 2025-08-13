@@ -1,9 +1,9 @@
 #pragma once
-#include "trader.h"
-#include "utils/market_dataframe.h"
-#include "utils/trade_message.h"
 #include <unordered_map>
 #include <vector>
+#include "trader.h"
+#include "market_dataframe.h"
+#include "trade_message.h"
 
 // Used within getLiveStocks
 template <typename K, typename V>
