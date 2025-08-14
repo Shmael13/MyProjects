@@ -130,9 +130,10 @@ void Exchange::matchOrders() {
   for (const auto &[ticker, stock] : live_stocks) {
     stocks_to_process.push_back(stock);
   }
-// OpenMP parallelizes the loop over the vector of stocks.
-// Each thread processes a different stock's order book.
-#pragma omp parallel for
+
+  // OpenMP parallelizes the loop over the vector of stocks.
+  // Each thread processes a different stock's order book.
+  #pragma omp parallel for
   for (size_t i = 0; i < stocks_to_process.size(); ++i) {
     Stock *stock = stocks_to_process[i];
 
@@ -140,7 +141,8 @@ void Exchange::matchOrders() {
     auto &sell_book = stock->getSellBook();
 
     double acc_stock_price = 0;
-    long int acc_stock_volume = 0;
+    //TODO make sure overflow doesn't happen here
+    int acc_stock_volume = 0;
 
     while (!buy_book.empty() && !sell_book.empty()) {
       const Trader_X_Msg &buy_order = buy_book.top();

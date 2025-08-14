@@ -1,7 +1,7 @@
 #Compilers
 CXX = g++
 CXXFLAGS = -Wall -Werror -Wextra -Wconversion -Wsign-conversion -Weffc++ -std=c++23 
-EXEC_FLAGS = -O3 
+EXEC_FLAGS = -O3 -fopenmp
 
 # OS Detection
 ifeq ($(OS),Windows_NT)
@@ -25,10 +25,10 @@ PY_CFLAGS = $(shell pkg-config --cflags python3)
 TARGET = main$(EXE)
 
 #Source Files
-SRCS = $(wildcard *.cpp utils$(SEP)*.cpp trader_algos$(SEP)*.cpp)
+SRCS = $(wildcard *.cpp utils$(SEP)*.cpp trader_algos$(SEP)*.cpp src$(SEP)*.cpp)
 
 #Header files
-HEADER = $(wildcard *.h utils$(SEP)*.h trader_algos$(SEP)*.h)
+HEADER = $(wildcard *.h utils$(SEP)*.h trader_algos$(SEP)*.h src$(SEP)*.h)
 
 #Object files
 OBJS = $(SRCS:.cpp=.o)

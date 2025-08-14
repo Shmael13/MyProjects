@@ -2,6 +2,7 @@
 #include <deque>
 #include <iostream>
 #include <string>
+#include <chrono>
 
 struct StockFrame {
   std::string_view ticker;
@@ -9,7 +10,30 @@ struct StockFrame {
   double curr_price;
   long int vol_traded;
   long int num_stocks;
-  long long recording_time;
+  long int recording_time;
+
+
+
+  // Included initializer for -Weffc++ warning
+  StockFrame(
+      std::string_view ticker = "",
+      std::string_view industry_name = "",
+      double price = 0.0,
+      long int volume_traded = 0,
+      long int num_stocks = 0,
+      // The line below tells how much time has passed since the start (1982 or smth) in milliseconds
+      long int time =   std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::system_clock::now().time_since_epoch()).count()
+      )
+      : ticker(std::move(ticker)),
+        industry_name(std::move(industry_name)),
+        curr_price(price),
+        vol_traded(volume_traded),
+        num_stocks(num_stocks),
+        recording_time(time)
+  {if (ticker == ""){
+    std::cerr << "UNINITILIZED STOCKFRAME";
+    }}
 };
 
 constexpr std::ostream &operator<<(std::ostream &out, StockFrame sf) {

@@ -7,7 +7,8 @@ Stock::Stock(std::string_view ticker, std::shared_ptr<Industry> industryPtr,
              double curr_price, long int num_stocks, Exchange &exchange)
     : ticker(ticker), industry(industryPtr), curr_price(curr_price),
       vol_traded(0), num_stocks(num_stocks),
-      exchange_start_time(exchange.getExchangeStartTime()) {
+      exchange_start_time(exchange.getExchangeStartTime()),
+      buy_book(), sell_book(){
   industry->addStock(this);
 }
 
@@ -52,5 +53,5 @@ void Stock::pushOrder(Trader_X_Msg txm) {
 StockFrame Stock::toStockFrame(void) const {
   return StockFrame{ticker,     industry->getName(),
                     curr_price, vol_traded,
-                    num_stocks, getCurrTime() - exchange_start_time};
+                    num_stocks, (getCurrTime() - exchange_start_time)};
 }

@@ -16,6 +16,23 @@ struct Trade_Message {
   TradeType trade_type;
   double price;
   int quantity;
+
+  
+  Trade_Message(
+    std::string ticker = "",
+    TradeType trade_type = MARKET_BUY,
+    double price = 0,
+    int quantity = 0)
+    :  
+    ticker(ticker),
+    trade_type(trade_type),
+    price(price),
+    quantity(quantity)
+  {if (ticker == ""){
+    std::cerr << "UNINITILIZED TRADE_MESSAGE";
+  }}
+
+
 };
 } // namespace Trades
 

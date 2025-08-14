@@ -28,6 +28,10 @@ void initialize_python() {
         sys.path.append('../trader_algos')
         sys.path.append('/usr/lib/python3/dist-packages')
         sys.path.append('/usr/lib/python3.10/dist-packages')
+        os.chdir('trader_algos')
+        cwd = os.getcwd()
+        for entry in os.listdir(cwd):
+          print(entry)
         )");
   std::cout << "\n";
 }
